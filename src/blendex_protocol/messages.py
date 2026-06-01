@@ -51,6 +51,25 @@ class OperationResponse:
     def error(cls, request_id: str, error: BlendexError) -> "OperationResponse":
         return cls(id=request_id, ok=False, error=error.to_dict())
 
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "OperationResponse":
+        response_id = payload.get("id")
+        ok = payload.get("ok")
+        if not isinstance(response_id, str) or not response_id:
+            raise BlendexError("VALIDATION_FAILED", "Response id must be a non-empty string.")
+        if not isinstance(ok, bool):
+            raise BlendexError("VALIDATION_FAILED", "Response ok must be a boolean.")
+        if ok:
+            result = payload.get("result", {})
+            if not isinstance(result, dict):
+                raise BlendexError("VALIDATION_FAILED", "Response result must be an object.")
+            return cls(id=response_id, ok=True, result=result)
+
+        error = payload.get("error")
+        if not isinstance(error, dict):
+            raise BlendexError("VALIDATION_FAILED", "Error response requires an error object.")
+        return cls(id=response_id, ok=False, error=error)
+
     def to_dict(self) -> Dict[str, Any]:
         data: Dict[str, Any] = {"id": self.id, "ok": self.ok}
         if self.ok:

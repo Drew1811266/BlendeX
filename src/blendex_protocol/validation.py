@@ -32,15 +32,19 @@ def validate_request(request: OperationRequest) -> None:
             f"Operation is not allowlisted: {request.type}",
             retry_hint="Choose a supported BlendeX structured operation.",
         )
-    if request.type.startswith("geometry_nodes.") and "object_id" not in request.target:
-        raise BlendexError(
-            "VALIDATION_FAILED",
-            "Geometry Nodes operations require target.object_id.",
-            retry_hint="Inspect the scene or create a carrier mesh before editing nodes.",
-        )
-    if request.type == "geometry_nodes.create_node" and "node_type" not in request.params:
-        raise BlendexError(
-            "VALIDATION_FAILED",
-            "create_node requires params.node_type.",
-            retry_hint="Use a node type returned by capabilities.scan.",
-        )
+    if request.type.startswith("geometry_nodes."):
+        object_id = request.target.get("object_id")
+        if not isinstance(object_id, str) or not object_id:
+            raise BlendexError(
+                "VALIDATION_FAILED",
+                "Geometry Nodes operations require target.object_id.",
+                retry_hint="Inspect the scene or create a carrier mesh before editing nodes.",
+            )
+    if request.type == "geometry_nodes.create_node":
+        node_type = request.params.get("node_type")
+        if not isinstance(node_type, str) or not node_type:
+            raise BlendexError(
+                "VALIDATION_FAILED",
+                "create_node requires params.node_type.",
+                retry_hint="Use a node type returned by capabilities.scan.",
+            )
