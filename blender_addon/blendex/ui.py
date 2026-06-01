@@ -1,7 +1,14 @@
 from .state import STATE
 
+try:
+    import bpy
 
-class BLENDEX_PT_panel:
+    _PanelBase = bpy.types.Panel
+except ImportError:
+    _PanelBase = object
+
+
+class BLENDEX_PT_panel(_PanelBase):
     bl_label = "BlendeX"
     bl_idname = "BLENDEX_PT_panel"
     bl_space_type = "VIEW_3D"
