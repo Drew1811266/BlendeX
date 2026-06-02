@@ -2,10 +2,11 @@ import base64
 import hashlib
 import json
 import logging
+import queue
 import socket
 import struct
 import threading
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from blendex_protocol.errors import BlendexError
 from blendex_protocol.messages import OperationRequest, OperationResponse
@@ -25,10 +26,64 @@ _active_client_socket: Optional[socket.socket] = None
 _SOCKET_TIMEOUT_SECONDS = 0.25
 _STARTUP_TIMEOUT_SECONDS = 1.0
 _SHUTDOWN_JOIN_SECONDS = 1.0
+_MAIN_THREAD_DISPATCH_TIMEOUT_SECONDS = 30.0
 _LOGGER = logging.getLogger(__name__)
+_main_thread_dispatch_queue: "queue.Queue[_MainThreadDispatchTask]" = queue.Queue()
+_main_thread_dispatch_enabled = False
 
 
-def dispatch_payload(payload: Any, executor: Any) -> Dict[str, Any]:
+class _MainThreadDispatchTask:
+    def __init__(self, payload: Any, executor_factory: Callable[[], Any]):
+        self.payload = payload
+        self.executor_factory = executor_factory
+        self.event = threading.Event()
+        self.response: Optional[Dict[str, Any]] = None
+
+
+def _scan_bpy_capabilities() -> Dict[str, Any]:
+    from .capabilities import scan_bpy_capabilities
+
+    return scan_bpy_capabilities()
+
+
+def _inspect_bpy_scene() -> Dict[str, Any]:
+    import bpy
+
+    objects = []
+    for obj in bpy.data.objects:
+        modifiers = []
+        for modifier in obj.modifiers:
+            modifier_get = getattr(modifier, "get", None)
+            owned = bool(modifier_get("blendex_owned", False)) if callable(modifier_get) else False
+            modifiers.append(
+                {
+                    "name": modifier.name,
+                    "type": modifier.type,
+                    "blendex_owned": owned,
+                }
+            )
+        objects.append({"name": obj.name, "type": obj.type, "modifiers": modifiers})
+    selected_objects = [obj.name for obj in getattr(bpy.context, "selected_objects", [])]
+    active_object = getattr(bpy.context, "object", None)
+    return {
+        "objects": objects,
+        "selected_objects": selected_objects,
+        "selected_object": active_object.name if active_object is not None else None,
+    }
+
+
+def _implemented_operations() -> Dict[str, Any]:
+    from .capabilities import IMPLEMENTED_OPERATIONS
+
+    return {"supported_operations": sorted(IMPLEMENTED_OPERATIONS)}
+
+
+def dispatch_payload(
+    payload: Any,
+    executor: Any,
+    capability_scanner: Optional[Callable[[], Dict[str, Any]]] = None,
+    scene_inspector: Optional[Callable[[], Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     request_id = "unknown"
     operation = ""
     try:
@@ -38,7 +93,15 @@ def dispatch_payload(payload: Any, executor: Any) -> Dict[str, Any]:
         operation = str(payload.get("type", ""))
         request = OperationRequest.from_dict(payload)
         validate_request(request)
-        if executor is None:
+        if request.type == "capabilities.scan":
+            scanner = capability_scanner or _scan_bpy_capabilities
+            result = scanner()
+        elif request.type == "capabilities.supported_operations":
+            result = _implemented_operations()
+        elif request.type == "scene.inspect":
+            inspector = scene_inspector or _inspect_bpy_scene
+            result = inspector()
+        elif executor is None:
             result = {"validated": True}
         else:
             result = executor.execute(request)
@@ -70,6 +133,96 @@ def dispatch_payload(payload: Any, executor: Any) -> Dict[str, Any]:
         return OperationResponse.error(request_id, blendex_error).to_dict()
 
 
+def _dispatch_payload_with_factory(payload: Any, executor_factory: Callable[[], Any]) -> Dict[str, Any]:
+    if isinstance(payload, dict) and payload.get("type") in {
+        "capabilities.scan",
+        "capabilities.supported_operations",
+        "scene.inspect",
+    }:
+        return dispatch_payload(payload, executor=None)
+    return dispatch_payload(payload, executor=executor_factory())
+
+
+def _dispatch_payload_for_service(
+    payload: Any,
+    executor_factory: Callable[[], Any] = None,
+    timeout: float = _MAIN_THREAD_DISPATCH_TIMEOUT_SECONDS,
+) -> Dict[str, Any]:
+    if executor_factory is None:
+        executor_factory = _default_executor
+    if not _main_thread_dispatch_enabled:
+        return _dispatch_payload_with_factory(payload, executor_factory)
+    task = _MainThreadDispatchTask(payload, executor_factory)
+    _main_thread_dispatch_queue.put(task)
+    if not task.event.wait(timeout):
+        request_id = str(payload.get("id", "unknown")) if isinstance(payload, dict) else "unknown"
+        return OperationResponse.error(
+            request_id,
+            BlendexError(
+                "EXECUTION_FAILED",
+                "Timed out waiting for Blender main-thread dispatch.",
+            ),
+        ).to_dict()
+    if task.response is None:
+        request_id = str(payload.get("id", "unknown")) if isinstance(payload, dict) else "unknown"
+        return OperationResponse.error(
+            request_id,
+            BlendexError("EXECUTION_FAILED", "Blender main-thread dispatch did not return a response."),
+        ).to_dict()
+    return task.response
+
+
+def _drain_main_thread_dispatch() -> Optional[float]:
+    while True:
+        try:
+            task = _main_thread_dispatch_queue.get_nowait()
+        except queue.Empty:
+            break
+        try:
+            task.response = _dispatch_payload_with_factory(task.payload, task.executor_factory)
+        except Exception as error:
+            request_id = str(task.payload.get("id", "unknown")) if isinstance(task.payload, dict) else "unknown"
+            task.response = OperationResponse.error(
+                request_id,
+                BlendexError("EXECUTION_FAILED", str(error) or error.__class__.__name__),
+            ).to_dict()
+        finally:
+            task.event.set()
+    if _stop_event.is_set():
+        return None
+    return 0.05
+
+
+def _clear_main_thread_dispatch_queue() -> None:
+    while True:
+        try:
+            task = _main_thread_dispatch_queue.get_nowait()
+        except queue.Empty:
+            break
+        task.response = OperationResponse.error(
+            "unknown",
+            BlendexError("EXECUTION_FAILED", "BlendeX service stopped before dispatch completed."),
+        ).to_dict()
+        task.event.set()
+
+
+def _register_main_thread_dispatch_timer() -> bool:
+    global _main_thread_dispatch_enabled
+    try:
+        import bpy
+    except ImportError:
+        _main_thread_dispatch_enabled = False
+        return False
+    timers = getattr(getattr(bpy, "app", None), "timers", None)
+    register = getattr(timers, "register", None)
+    if not callable(register):
+        _main_thread_dispatch_enabled = False
+        return False
+    register(_drain_main_thread_dispatch)
+    _main_thread_dispatch_enabled = True
+    return True
+
+
 def start_service(port: Optional[int] = None) -> None:
     global _server_thread, _startup_error
     if STATE.service_running:
@@ -79,6 +232,7 @@ def start_service(port: Optional[int] = None) -> None:
     _stop_event.clear()
     _startup_event.clear()
     _startup_error = None
+    _register_main_thread_dispatch_timer()
     _server_thread = threading.Thread(target=_run_socket_server, daemon=True)
     _server_thread.start()
     if not _startup_event.wait(_STARTUP_TIMEOUT_SECONDS):
@@ -92,8 +246,10 @@ def start_service(port: Optional[int] = None) -> None:
 
 
 def stop_service() -> None:
-    global _server_thread
+    global _server_thread, _main_thread_dispatch_enabled
     _stop_event.set()
+    _main_thread_dispatch_enabled = False
+    _clear_main_thread_dispatch_queue()
     with _socket_lock:
         sockets = (_active_client_socket, _server_socket)
     for sock in sockets:
@@ -253,7 +409,7 @@ def _run_socket_server() -> None:
                             if text is None:
                                 break
                             payload = json.loads(text)
-                            response = dispatch_payload(payload, executor=_default_executor())
+                            response = _dispatch_payload_for_service(payload)
                             _send_ws_text(conn, json.dumps(response))
                     except socket.timeout:
                         if not _stop_event.is_set():

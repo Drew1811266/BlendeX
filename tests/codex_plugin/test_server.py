@@ -187,6 +187,29 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(response["error"]["code"], -32000)
         self.assertIn("no blender", response["error"]["message"])
 
+    def test_tools_call_marks_blender_operation_errors_as_tool_errors(self):
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "tools/call",
+                "params": {"name": "blendex_inspect_scene"},
+            },
+            FakeClient(
+                result={
+                    "id": "req_bad",
+                    "ok": False,
+                    "error": {"code": "UNSUPPORTED_OPERATION", "message": "Nope"},
+                }
+            ),
+        )
+
+        self.assertEqual(response["id"], 9)
+        self.assertTrue(response["result"]["isError"])
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "UNSUPPORTED_OPERATION")
+
     def test_malformed_json_line_returns_parse_error(self):
         response_line = server.handle_line("not-json\n", FakeClient())
         response = json.loads(response_line)

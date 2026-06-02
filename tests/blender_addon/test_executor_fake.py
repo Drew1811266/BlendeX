@@ -13,12 +13,13 @@ class FakeNodeTree:
 
 
 class FakeModifier:
-    def __init__(self, name):
+    def __init__(self, name, owned=True):
         self.name = name
         self.type = "NODES"
         self.node_group = FakeNodeTree()
         self.props = {}
-        self["blendex_owned"] = True
+        if owned:
+            self["blendex_owned"] = True
 
     def __setitem__(self, key, value):
         self.props[key] = value
@@ -102,6 +103,22 @@ class ExecutorTests(unittest.TestCase):
             executor.execute(request)
 
         self.assertEqual(raised.exception.code, "NODE_TYPE_NOT_FOUND")
+
+    def test_create_node_requires_blendex_owned_modifier(self):
+        context = FakeContext()
+        context.objects["Cube"].modifiers["User Geometry"] = FakeModifier("User Geometry", owned=False)
+        executor = GeometryNodesExecutor(context)
+        request = OperationRequest(
+            id="req_owned",
+            type="geometry_nodes.create_node",
+            target={"object_id": "Cube", "modifier_id": "User Geometry"},
+            params={"node_type": "GeometryNodeJoinGeometry"},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            executor.execute(request)
+
+        self.assertEqual(raised.exception.code, "OWNERSHIP_REQUIRED")
 
     def test_inspect_tree_returns_nodes_and_structured_links(self):
         context = FakeContext()

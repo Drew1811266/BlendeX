@@ -27,13 +27,28 @@ class GeometryNodesExecutor:
             raise BlendexError("OBJECT_NOT_FOUND", f"Object not found: {object_id}")
         return obj
 
-    def _modifier(self, obj: Any, modifier_id: str) -> Any:
+    def _modifier(self, obj: Any, modifier_id: str, require_ownership: bool = False) -> Any:
         modifier = obj.modifiers.get(modifier_id)
         if modifier is None:
             raise BlendexError("MODIFIER_NOT_FOUND", f"Modifier not found: {modifier_id}")
         if getattr(modifier, "type", "") != "NODES":
             raise BlendexError("MODIFIER_NOT_FOUND", f"Modifier is not a Geometry Nodes modifier: {modifier_id}")
+        if require_ownership and not self._is_blendex_owned(modifier):
+            raise BlendexError(
+                "OWNERSHIP_REQUIRED",
+                f"Modifier is not marked as BlendeX-owned: {modifier_id}",
+                retry_hint="Inspect the tree first or create/use a BlendeX-owned Geometry Nodes modifier.",
+            )
         return modifier
+
+    def _is_blendex_owned(self, modifier: Any) -> bool:
+        getter = getattr(modifier, "get", None)
+        if callable(getter):
+            return bool(getter("blendex_owned", False))
+        try:
+            return bool(modifier["blendex_owned"])
+        except (KeyError, TypeError, AttributeError):
+            return False
 
     def _create_node(self, request: OperationRequest) -> Dict[str, Any]:
         node_type = request.params["node_type"]
@@ -44,7 +59,11 @@ class GeometryNodesExecutor:
                 retry_hint="Refresh capabilities and choose a node type reported by Blender.",
             )
         obj = self._object(request.target["object_id"])
-        modifier = self._modifier(obj, request.target.get("modifier_id", "BlendeX Geometry"))
+        modifier = self._modifier(
+            obj,
+            request.target.get("modifier_id", "BlendeX Geometry"),
+            require_ownership=True,
+        )
         tree = self._node_tree(modifier)
         label = request.params.get("label", node_type)
         location = request.params.get("location", [0, 0])

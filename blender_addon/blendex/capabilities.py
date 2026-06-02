@@ -1,6 +1,13 @@
 from typing import Any, Dict
 
-from blendex_protocol.validation import ALLOWED_OPERATIONS
+
+IMPLEMENTED_OPERATIONS = {
+    "capabilities.scan",
+    "capabilities.supported_operations",
+    "scene.inspect",
+    "geometry_nodes.inspect_tree",
+    "geometry_nodes.create_node",
+}
 
 
 def scan_capabilities(runtime: Any) -> Dict[str, Any]:
@@ -9,7 +16,7 @@ def scan_capabilities(runtime: Any) -> Dict[str, Any]:
     return {
         "blender_version": version,
         "node_types": node_types,
-        "supported_operations": sorted(ALLOWED_OPERATIONS),
+        "supported_operations": sorted(IMPLEMENTED_OPERATIONS),
     }
 
 

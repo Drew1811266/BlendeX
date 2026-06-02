@@ -2,6 +2,10 @@
 
 BlendeX is a Blender add-on and CodeX plugin MVP using a split bridge: the Blender add-on exposes a local WebSocket service, and the CodeX MCP tools call a structured Geometry Nodes executor. The MVP does not execute arbitrary AI-generated Python.
 
+## Source Tree Setup
+
+For local development, point Blender at the `blender_addon` directory. The add-on bootstraps the sibling `src` directory when running from this source tree so the shared `blendex_protocol` package is available inside Blender.
+
 ## Development Checks
 
 Run the Python unit tests:

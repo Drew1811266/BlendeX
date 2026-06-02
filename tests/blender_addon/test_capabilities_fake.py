@@ -3,7 +3,6 @@ import types
 import unittest
 
 from blender_addon.blendex.capabilities import scan_bpy_capabilities, scan_capabilities
-from blendex_protocol.validation import ALLOWED_OPERATIONS
 
 
 class FakeBlender:
@@ -20,7 +19,16 @@ class CapabilityTests(unittest.TestCase):
 
         self.assertEqual(result["blender_version"], [4, 1, 0])
         self.assertIn("GeometryNodeJoinGeometry", result["node_types"])
-        self.assertEqual(result["supported_operations"], sorted(ALLOWED_OPERATIONS))
+        self.assertEqual(
+            result["supported_operations"],
+            [
+                "capabilities.scan",
+                "capabilities.supported_operations",
+                "geometry_nodes.create_node",
+                "geometry_nodes.inspect_tree",
+                "scene.inspect",
+            ],
+        )
 
     def test_scan_bpy_capabilities_filters_geometry_node_subclasses(self):
         class GeometryNodeJoinGeometry:

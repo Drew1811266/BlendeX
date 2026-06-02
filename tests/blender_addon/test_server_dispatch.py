@@ -1,6 +1,7 @@
 import importlib
 import socket
 import sys
+import threading
 import time
 import types
 import unittest
@@ -11,6 +12,8 @@ from blender_addon.blendex import server
 from blender_addon.blendex.server import (
     _read_http_headers,
     _read_ws_text,
+    _dispatch_payload_for_service,
+    _drain_main_thread_dispatch,
     _send_ws_text,
     _websocket_accept_key,
     dispatch_payload,
@@ -63,7 +66,12 @@ class DispatchTests(unittest.TestCase):
 
         with self.assertLogs(server._LOGGER, level="ERROR"):
             response = dispatch_payload(
-                {"id": "req_run", "type": "scene.inspect", "target": {}, "params": {}},
+                {
+                    "id": "req_run",
+                    "type": "geometry_nodes.inspect_tree",
+                    "target": {"object_id": "Cube"},
+                    "params": {},
+                },
                 executor=RaisingExecutor(),
             )
 
@@ -71,8 +79,80 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(response["id"], "req_run")
         self.assertEqual(response["error"]["code"], "EXECUTION_FAILED")
         self.assertEqual(STATE.recent_logs[0].request_id, "req_run")
-        self.assertEqual(STATE.recent_logs[0].operation, "scene.inspect")
+        self.assertEqual(STATE.recent_logs[0].operation, "geometry_nodes.inspect_tree")
         self.assertEqual(STATE.recent_logs[0].error_code, "EXECUTION_FAILED")
+
+    def test_dispatch_handles_capability_scan_without_executor(self):
+        response = dispatch_payload(
+            {"id": "req_scan", "type": "capabilities.scan", "target": {}, "params": {}},
+            executor=None,
+            capability_scanner=lambda: {
+                "blender_version": [4, 2, 0],
+                "node_types": {"GeometryNodeJoinGeometry": {}},
+                "supported_operations": ["capabilities.scan"],
+            },
+        )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["result"]["blender_version"], [4, 2, 0])
+        self.assertIn("GeometryNodeJoinGeometry", response["result"]["node_types"])
+
+    def test_dispatch_handles_scene_inspect_without_executor(self):
+        response = dispatch_payload(
+            {"id": "req_scene", "type": "scene.inspect", "target": {}, "params": {}},
+            executor=None,
+            scene_inspector=lambda: {"objects": [{"name": "Cube"}], "selected_object": "Cube"},
+        )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["result"]["selected_object"], "Cube")
+
+
+class MainThreadDispatchTests(unittest.TestCase):
+    def tearDown(self):
+        server._main_thread_dispatch_enabled = False
+        server._clear_main_thread_dispatch_queue()
+
+    def test_service_dispatch_defers_execution_until_main_thread_drain(self):
+        calls = []
+
+        class RecordingExecutor:
+            def execute(self, request):
+                calls.append(threading.current_thread().name)
+                return {"thread": calls[-1]}
+
+        def executor_factory():
+            calls.append("factory")
+            return RecordingExecutor()
+
+        server._main_thread_dispatch_enabled = True
+        response_holder = []
+        payload = {
+            "id": "req_thread",
+            "type": "geometry_nodes.inspect_tree",
+            "target": {"object_id": "Cube"},
+            "params": {},
+        }
+
+        worker = threading.Thread(
+            target=lambda: response_holder.append(
+                _dispatch_payload_for_service(payload, executor_factory=executor_factory, timeout=1.0)
+            ),
+            name="socket-worker",
+        )
+        worker.start()
+        for _ in range(20):
+            if server._main_thread_dispatch_queue.qsize():
+                break
+            time.sleep(0.01)
+
+        self.assertEqual(calls, [])
+
+        _drain_main_thread_dispatch()
+        worker.join(1.0)
+
+        self.assertEqual(calls, ["factory", "MainThread"])
+        self.assertTrue(response_holder[0]["ok"])
 
 
 class WebSocketTests(unittest.TestCase):

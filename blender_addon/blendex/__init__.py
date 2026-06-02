@@ -1,3 +1,17 @@
+import pathlib
+import sys
+
+
+def _ensure_source_tree_protocol_path():
+    root = pathlib.Path(__file__).resolve().parents[2]
+    src = root / "src"
+    if src.exists() and str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+
+
+_ensure_source_tree_protocol_path()
+
+
 bl_info = {
     "name": "BlendeX",
     "author": "BlendeX Contributors",

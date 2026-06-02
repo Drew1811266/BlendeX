@@ -11,6 +11,13 @@ def _content(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"content": [{"type": "text", "text": json.dumps(payload)}]}
 
 
+def _tool_result(payload: Dict[str, Any]) -> Dict[str, Any]:
+    result = _content(payload)
+    if payload.get("ok") is False:
+        result["isError"] = True
+    return result
+
+
 def json_rpc_success(message_id: Any, result: Dict[str, Any]) -> Dict[str, Any]:
     return {"jsonrpc": "2.0", "id": message_id, "result": result}
 
@@ -104,7 +111,7 @@ def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[D
             result = client.send_operation(operation)
         except (ConnectionError, OSError, TimeoutError, json.JSONDecodeError) as error:
             return json_rpc_error(message_id, -32000, f"BlendeX client error: {error}")
-        return json_rpc_success(message_id, _content(result))
+        return json_rpc_success(message_id, _tool_result(result))
     return json_rpc_error(message_id, -32601, f"Method not found: {method}")
 
 
