@@ -1,10 +1,11 @@
 import base64
+import hashlib
 import json
 import os
 import socket
 import struct
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -15,8 +16,8 @@ class BlenderConnectionConfig:
 
 
 class BlenderClient:
-    def __init__(self, config: BlenderConnectionConfig = BlenderConnectionConfig()):
-        self.config = config
+    def __init__(self, config: Optional[BlenderConnectionConfig] = None):
+        self.config = config or BlenderConnectionConfig()
 
     def send_operation(self, operation: Dict[str, Any]) -> Dict[str, Any]:
         with socket.create_connection(
@@ -38,9 +39,25 @@ class BlenderClient:
             "Sec-WebSocket-Version: 13\r\n\r\n"
         )
         sock.sendall(request.encode("utf-8"))
-        response = sock.recv(4096).decode("utf-8")
-        if "101 Switching Protocols" not in response:
+        response = sock.recv(4096).decode("utf-8", errors="replace")
+        lines = response.split("\r\n")
+        status_parts = lines[0].split()
+        if len(status_parts) < 2 or status_parts[0] not in {"HTTP/1.0", "HTTP/1.1"}:
             raise ConnectionError("BlendeX service did not accept WebSocket handshake.")
+        if status_parts[1] != "101":
+            raise ConnectionError("BlendeX service did not accept WebSocket handshake.")
+        headers = {}
+        for line in lines[1:]:
+            if not line or ":" not in line:
+                continue
+            name, value = line.split(":", 1)
+            headers[name.strip().lower()] = value.strip()
+        digest = hashlib.sha1(
+            (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")
+        ).digest()
+        expected_accept = base64.b64encode(digest).decode("ascii")
+        if headers.get("sec-websocket-accept") != expected_accept:
+            raise ConnectionError("BlendeX service returned an invalid WebSocket handshake.")
 
     def _send_text(self, sock: socket.socket, text: str) -> None:
         payload = text.encode("utf-8")
