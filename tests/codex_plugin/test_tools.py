@@ -8,6 +8,7 @@ class ToolMappingTests(unittest.TestCase):
         names = tool_names()
 
         self.assertIn("blendex_create_node", names)
+        self.assertIn("blendex_inspect_scene", names)
         self.assertIn("blendex_scan_capabilities", names)
 
     def test_create_node_maps_to_structured_operation(self):
@@ -25,6 +26,18 @@ class ToolMappingTests(unittest.TestCase):
         self.assertEqual(operation["type"], "geometry_nodes.create_node")
         self.assertEqual(operation["target"]["object_id"], "Cube")
         self.assertEqual(operation["params"]["node_type"], "GeometryNodeJoinGeometry")
+
+    def test_inspect_scene_maps_to_structured_operation(self):
+        operation = tool_to_operation("blendex_inspect_scene", {}, request_id="req_x")
+
+        self.assertEqual(
+            operation,
+            {"id": "req_x", "type": "scene.inspect", "target": {}, "params": {}},
+        )
+
+    def test_unknown_tool_raises_value_error(self):
+        with self.assertRaisesRegex(ValueError, "Unknown BlendeX tool: blendex_nope"):
+            tool_to_operation("blendex_nope", {}, request_id="req_unknown")
 
 
 if __name__ == "__main__":
