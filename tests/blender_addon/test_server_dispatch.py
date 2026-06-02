@@ -187,6 +187,34 @@ class MainThreadDispatchTests(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "EXECUTION_FAILED")
 
+    def test_service_dispatch_requires_main_thread_dispatcher(self):
+        calls = []
+
+        def executor_factory():
+            calls.append("factory")
+
+            class RecordingExecutor:
+                def execute(self, request):
+                    calls.append("execute")
+                    return {"ok": True}
+
+            return RecordingExecutor()
+
+        server._main_thread_dispatch_enabled = False
+        response = _dispatch_payload_for_service(
+            {
+                "id": "req_no_dispatcher",
+                "type": "geometry_nodes.inspect_tree",
+                "target": {"object_id": "Cube"},
+                "params": {},
+            },
+            executor_factory=executor_factory,
+        )
+
+        self.assertEqual(calls, [])
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "EXECUTION_FAILED")
+
 
 class WebSocketTests(unittest.TestCase):
     def test_websocket_accept_key_matches_rfc_example(self):

@@ -157,7 +157,11 @@ def _dispatch_payload_for_service(
             BlendexError("EXECUTION_FAILED", "BlendeX service is stopping."),
         ).to_dict()
     if not _main_thread_dispatch_enabled:
-        return _dispatch_payload_with_factory(payload, executor_factory)
+        request_id = str(payload.get("id", "unknown")) if isinstance(payload, dict) else "unknown"
+        return OperationResponse.error(
+            request_id,
+            BlendexError("EXECUTION_FAILED", "BlendeX main-thread dispatch is unavailable."),
+        ).to_dict()
     task = _MainThreadDispatchTask(payload, executor_factory)
     _main_thread_dispatch_queue.put(task)
     if not task.event.wait(timeout):
