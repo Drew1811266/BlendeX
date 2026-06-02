@@ -10,9 +10,27 @@ bl_info = {
 
 
 def _load_classes():
+    import bpy
+    from . import server
     from .ui import panel_classes
 
-    return panel_classes()
+    class BLENDEX_OT_start_service(bpy.types.Operator):
+        bl_idname = "blendex.start_service"
+        bl_label = "Start BlendeX Service"
+
+        def execute(self, context):
+            server.start_service()
+            return {"FINISHED"}
+
+    class BLENDEX_OT_stop_service(bpy.types.Operator):
+        bl_idname = "blendex.stop_service"
+        bl_label = "Stop BlendeX Service"
+
+        def execute(self, context):
+            server.stop_service()
+            return {"FINISHED"}
+
+    return [BLENDEX_OT_start_service, BLENDEX_OT_stop_service] + panel_classes()
 
 
 def register():
@@ -24,6 +42,8 @@ def register():
 
 def unregister():
     import bpy
+    from . import server
 
+    server.stop_service()
     for cls in reversed(_load_classes()):
         bpy.utils.unregister_class(cls)
