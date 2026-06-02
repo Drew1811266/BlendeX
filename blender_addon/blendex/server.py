@@ -150,6 +150,12 @@ def _dispatch_payload_for_service(
 ) -> Dict[str, Any]:
     if executor_factory is None:
         executor_factory = _default_executor
+    if _stop_event.is_set():
+        request_id = str(payload.get("id", "unknown")) if isinstance(payload, dict) else "unknown"
+        return OperationResponse.error(
+            request_id,
+            BlendexError("EXECUTION_FAILED", "BlendeX service is stopping."),
+        ).to_dict()
     if not _main_thread_dispatch_enabled:
         return _dispatch_payload_with_factory(payload, executor_factory)
     task = _MainThreadDispatchTask(payload, executor_factory)
@@ -409,6 +415,8 @@ def _run_socket_server() -> None:
                             if text is None:
                                 break
                             payload = json.loads(text)
+                            if _stop_event.is_set():
+                                break
                             response = _dispatch_payload_for_service(payload)
                             _send_ws_text(conn, json.dumps(response))
                     except socket.timeout:

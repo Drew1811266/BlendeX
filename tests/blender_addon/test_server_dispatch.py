@@ -109,9 +109,13 @@ class DispatchTests(unittest.TestCase):
 
 
 class MainThreadDispatchTests(unittest.TestCase):
+    def setUp(self):
+        server._stop_event.clear()
+
     def tearDown(self):
         server._main_thread_dispatch_enabled = False
         server._clear_main_thread_dispatch_queue()
+        server._stop_event.clear()
 
     def test_service_dispatch_defers_execution_until_main_thread_drain(self):
         calls = []
@@ -153,6 +157,35 @@ class MainThreadDispatchTests(unittest.TestCase):
 
         self.assertEqual(calls, ["factory", "MainThread"])
         self.assertTrue(response_holder[0]["ok"])
+
+    def test_service_dispatch_returns_error_without_executor_after_stop(self):
+        calls = []
+
+        def executor_factory():
+            calls.append("factory")
+
+            class RecordingExecutor:
+                def execute(self, request):
+                    calls.append("execute")
+                    return {"ok": True}
+
+            return RecordingExecutor()
+
+        server._main_thread_dispatch_enabled = False
+        server._stop_event.set()
+        response = _dispatch_payload_for_service(
+            {
+                "id": "req_stopped",
+                "type": "geometry_nodes.inspect_tree",
+                "target": {"object_id": "Cube"},
+                "params": {},
+            },
+            executor_factory=executor_factory,
+        )
+
+        self.assertEqual(calls, [])
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "EXECUTION_FAILED")
 
 
 class WebSocketTests(unittest.TestCase):
