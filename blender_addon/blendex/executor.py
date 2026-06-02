@@ -54,7 +54,7 @@ class GeometryNodesExecutor:
             node.location = location
             return {"id": node.name, "node_type": node_type, "label": label, "location": list(location)}
         node_id = f"node_{len(tree.nodes) + 1}"
-        node_data = {"id": node_id, "node_type": node_type, "label": label, "location": location}
+        node_data = {"id": node_id, "node_type": node_type, "label": label, "location": list(location)}
         tree.nodes[node_id] = node_data
         return node_data
 
@@ -66,7 +66,17 @@ class GeometryNodesExecutor:
             nodes = list(tree.nodes.values())
         else:
             nodes = [{"id": node.name, "node_type": node.bl_idname, "label": node.label} for node in tree.nodes]
-        return {"nodes": nodes, "links": [str(link) for link in tree.links]}
+        return {"nodes": nodes, "links": [self._inspect_link(link) for link in tree.links]}
+
+    def _inspect_link(self, link: Any) -> Dict[str, Any]:
+        if isinstance(link, dict):
+            return link
+        return {
+            "from_node": getattr(getattr(link, "from_node", None), "name", None),
+            "from_socket": getattr(getattr(link, "from_socket", None), "name", None),
+            "to_node": getattr(getattr(link, "to_node", None), "name", None),
+            "to_socket": getattr(getattr(link, "to_socket", None), "name", None),
+        }
 
     def _node_tree(self, modifier: Any) -> Any:
         tree = getattr(modifier, "node_group", None)
