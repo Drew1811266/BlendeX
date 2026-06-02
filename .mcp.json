@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "blendex": {
+      "command": "python3",
+      "args": ["-m", "codex_plugin.blendex_mcp.server"],
+      "cwd": "."
+    }
+  }
+}

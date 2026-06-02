@@ -1,0 +1,24 @@
+{
+  "name": "blendex",
+  "version": "0.1.0",
+  "description": "Connect CodeX to Blender Geometry Nodes through safe structured operations.",
+  "author": {
+    "name": "BlendeX Contributors"
+  },
+  "license": "MIT",
+  "keywords": ["blender", "geometry-nodes", "codex", "procedural"],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "BlendeX",
+    "shortDescription": "Drive Blender Geometry Nodes from CodeX",
+    "longDescription": "BlendeX lets CodeX connect to a local Blender add-on and create Geometry Nodes networks through structured, allowlisted operations.",
+    "developerName": "BlendeX Contributors",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Connect to Blender and inspect the current scene",
+      "Create a simple procedural Geometry Nodes setup on the selected object"
+    ],
+    "brandColor": "#4C8BF5"
+  }
+}
