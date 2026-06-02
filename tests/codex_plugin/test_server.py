@@ -35,11 +35,26 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(response["id"], 2)
         self.assertIn("tools", response["result"])
 
+    def test_initialized_notification_returns_no_response(self):
+        response = server.handle_message(
+            {"jsonrpc": "2.0", "method": "notifications/initialized"}, FakeClient()
+        )
+
+        self.assertIsNone(response)
+        self.assertIsNone(
+            server.handle_line(
+                '{"jsonrpc":"2.0","method":"notifications/initialized"}\n',
+                FakeClient(),
+            )
+        )
+
     def test_invalid_request_shapes_return_invalid_request_error(self):
         invalid_messages = [
             [],
             {"jsonrpc": "2.0", "id": 1},
             {"jsonrpc": "2.0", "id": 1, "method": 3},
+            {"id": 1, "method": "tools/list"},
+            {"jsonrpc": "1.0", "id": 1, "method": "tools/list"},
         ]
 
         for message in invalid_messages:
@@ -79,6 +94,52 @@ class ServerTests(unittest.TestCase):
             with self.subTest(params=params):
                 response = server.handle_message(
                     {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": params},
+                    FakeClient(),
+                )
+                self.assertEqual(response["error"]["code"], -32602)
+
+    def test_tools_call_rejects_arguments_that_violate_tool_schema(self):
+        invalid_calls = [
+            {
+                "name": "blendex_create_node",
+                "arguments": {"object_id": 3, "node_type": "GeometryNodeJoinGeometry"},
+            },
+            {
+                "name": "blendex_create_node",
+                "arguments": {"object_id": "Cube", "node_type": 3},
+            },
+            {
+                "name": "blendex_create_node",
+                "arguments": {
+                    "object_id": "Cube",
+                    "node_type": "GeometryNodeJoinGeometry",
+                    "modifier_id": 3,
+                },
+            },
+            {
+                "name": "blendex_create_node",
+                "arguments": {
+                    "object_id": "Cube",
+                    "node_type": "GeometryNodeJoinGeometry",
+                    "label": 3,
+                },
+            },
+            {
+                "name": "blendex_create_node",
+                "arguments": {
+                    "object_id": "Cube",
+                    "node_type": "GeometryNodeJoinGeometry",
+                    "unexpected": "value",
+                },
+            },
+            {"name": "blendex_inspect_scene", "arguments": {"unexpected": "value"}},
+            {"name": "blendex_scan_capabilities", "arguments": {"unexpected": "value"}},
+        ]
+
+        for params in invalid_calls:
+            with self.subTest(params=params):
+                response = server.handle_message(
+                    {"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": params},
                     FakeClient(),
                 )
                 self.assertEqual(response["error"]["code"], -32602)

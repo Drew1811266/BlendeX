@@ -41,9 +41,33 @@ def _validate_tool_call_params(params: Any) -> Optional[Dict[str, Any]]:
     return {"name": name, "arguments": arguments}
 
 
-def handle_message(message: Dict[str, Any], client: BlenderClient) -> Dict[str, Any]:
+def _validate_tool_arguments(name: str, arguments: Dict[str, Any]) -> Optional[str]:
+    if name in {"blendex_scan_capabilities", "blendex_inspect_scene"}:
+        if arguments:
+            return "Invalid params: tool does not accept arguments"
+        return None
+    if name == "blendex_create_node":
+        allowed = {"object_id", "modifier_id", "node_type", "label"}
+        extra_keys = sorted(set(arguments) - allowed)
+        if extra_keys:
+            return f"Invalid params: unexpected argument {extra_keys[0]}"
+        required = {"object_id", "node_type"}
+        missing_keys = sorted(required - set(arguments))
+        if missing_keys:
+            return f"Invalid params: missing argument {missing_keys[0]}"
+        for key in ("object_id", "node_type", "modifier_id", "label"):
+            if key in arguments and not isinstance(arguments[key], str):
+                return f"Invalid params: {key} must be a string"
+    return None
+
+
+def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[Dict[str, Any]]:
     message_id = _message_id(message)
     if not isinstance(message, dict):
+        return json_rpc_error(message_id, -32600, "Invalid Request")
+    if "id" not in message:
+        return None
+    if message.get("jsonrpc") != "2.0":
         return json_rpc_error(message_id, -32600, "Invalid Request")
     method = message.get("method")
     if not isinstance(method, str) or not method:
@@ -63,6 +87,9 @@ def handle_message(message: Dict[str, Any], client: BlenderClient) -> Dict[str, 
         params = _validate_tool_call_params(message.get("params", {}))
         if params is None:
             return _invalid_params(message_id, "Invalid params")
+        argument_error = _validate_tool_arguments(params["name"], params["arguments"])
+        if argument_error is not None:
+            return _invalid_params(message_id, argument_error)
         try:
             operation = tool_to_operation(
                 params["name"],
@@ -81,13 +108,15 @@ def handle_message(message: Dict[str, Any], client: BlenderClient) -> Dict[str, 
     return json_rpc_error(message_id, -32601, f"Method not found: {method}")
 
 
-def handle_line(line: str, client: BlenderClient) -> str:
+def handle_line(line: str, client: BlenderClient) -> Optional[str]:
     try:
         message = json.loads(line)
     except json.JSONDecodeError:
         response = json_rpc_error(None, -32700, "Parse error")
     else:
         response = handle_message(message, client)
+    if response is None:
+        return None
     return json.dumps(response)
 
 
@@ -96,8 +125,10 @@ def main() -> None:
     for line in sys.stdin:
         if not line.strip():
             continue
-        sys.stdout.write(handle_line(line, client) + "\n")
-        sys.stdout.flush()
+        response_line = handle_line(line, client)
+        if response_line is not None:
+            sys.stdout.write(response_line + "\n")
+            sys.stdout.flush()
 
 
 if __name__ == "__main__":

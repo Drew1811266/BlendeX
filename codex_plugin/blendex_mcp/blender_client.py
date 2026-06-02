@@ -39,7 +39,13 @@ class BlenderClient:
             "Sec-WebSocket-Version: 13\r\n\r\n"
         )
         sock.sendall(request.encode("utf-8"))
-        response = sock.recv(4096).decode("utf-8", errors="replace")
+        response_bytes = b""
+        while b"\r\n\r\n" not in response_bytes:
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise ConnectionError("BlendeX service closed during WebSocket handshake.")
+            response_bytes += chunk
+        response = response_bytes.decode("utf-8", errors="replace")
         lines = response.split("\r\n")
         status_parts = lines[0].split()
         if len(status_parts) < 2 or status_parts[0] not in {"HTTP/1.0", "HTTP/1.1"}:

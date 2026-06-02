@@ -35,6 +35,19 @@ class FakeHandshakeSocket:
         ).encode("utf-8")
 
 
+class SplitHandshakeSocket(FakeHandshakeSocket):
+    def __init__(self):
+        super().__init__()
+        self.response = None
+
+    def recv(self, size):
+        if self.response is None:
+            self.response = bytearray(super().recv(size))
+        chunk = self.response[:7]
+        del self.response[:7]
+        return bytes(chunk)
+
+
 class CaptureSocket:
     def __init__(self):
         self.sent = b""
@@ -69,6 +82,14 @@ class BlenderClientTests(unittest.TestCase):
     def test_handshake_accepts_valid_websocket_response(self):
         client = BlenderClient()
         sock = FakeHandshakeSocket()
+
+        client._handshake(sock)
+
+        self.assertIn(b"Sec-WebSocket-Key:", sock.sent)
+
+    def test_handshake_reads_split_response_headers(self):
+        client = BlenderClient()
+        sock = SplitHandshakeSocket()
 
         client._handshake(sock)
 
