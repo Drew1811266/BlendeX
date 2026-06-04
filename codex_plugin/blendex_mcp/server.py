@@ -58,6 +58,8 @@ def _tool_schema(name: str) -> Optional[Dict[str, Any]]:
 
 def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
     if "oneOf" in schema:
+        if _is_json_value_schema(schema):
+            return _json_value_matches(value)
         return any(_value_matches_schema(value, option) for option in schema["oneOf"])
     schema_type = schema.get("type")
     if schema_type == "string":
@@ -103,6 +105,34 @@ def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
             for prop_schema in [properties.get(key)]
         )
     return True
+
+
+def _is_json_value_schema(schema: Dict[str, Any]) -> bool:
+    options = schema.get("oneOf")
+    if not isinstance(options, list):
+        return False
+    return {option.get("type") for option in options} == {
+        "array",
+        "boolean",
+        "null",
+        "number",
+        "object",
+        "string",
+    }
+
+
+def _json_value_matches(value: Any) -> bool:
+    if isinstance(value, bool) or isinstance(value, str) or value is None:
+        return True
+    if isinstance(value, (int, float)):
+        return math.isfinite(value)
+    if isinstance(value, list):
+        return all(_json_value_matches(item) for item in value)
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _json_value_matches(item) for key, item in value.items()
+        )
+    return False
 
 
 def _validate_tool_arguments(name: str, arguments: Dict[str, Any]) -> Optional[str]:

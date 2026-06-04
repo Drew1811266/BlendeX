@@ -168,6 +168,9 @@ class ServerTests(unittest.TestCase):
             {"value": float("nan")},
             {"value": float("inf")},
             {"value": float("-inf")},
+            {"value": [float("nan")]},
+            {"value": {"x": float("inf")}},
+            {"value": [1, {"x": float("-inf")}]},
         ]
 
         for invalid_value in invalid_calls:
