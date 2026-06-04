@@ -194,6 +194,27 @@ class ServerTests(unittest.TestCase):
                 )
                 self.assertEqual(response["error"]["code"], -32602)
 
+    def test_tools_call_rejects_nested_huge_integer_without_crashing(self):
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "tools/call",
+                "params": {
+                    "name": "blendex_set_socket_value",
+                    "arguments": {
+                        "object_id": "Cube",
+                        "node_id": "Value",
+                        "socket": "Value",
+                        "value": [10**1000],
+                    },
+                },
+            },
+            FakeClient(),
+        )
+
+        self.assertEqual(response["error"]["code"], -32602)
+
     def test_tools_call_rejects_empty_nested_batch_operation_ids_and_types(self):
         invalid_calls = [
             {"operations": [{"id": "", "type": "scene.inspect", "target": {}, "params": {}}]},

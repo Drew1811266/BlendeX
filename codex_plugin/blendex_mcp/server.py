@@ -65,7 +65,7 @@ def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
     if schema_type == "string":
         return isinstance(value, str)
     if schema_type == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        return _number_matches(value)
     if schema_type == "boolean":
         return isinstance(value, bool)
     if schema_type == "null":
@@ -125,13 +125,23 @@ def _json_value_matches(value: Any) -> bool:
     if isinstance(value, bool) or isinstance(value, str) or value is None:
         return True
     if isinstance(value, (int, float)):
-        return math.isfinite(value)
+        return _number_matches(value)
     if isinstance(value, list):
         return all(_json_value_matches(item) for item in value)
     if isinstance(value, dict):
         return all(
             isinstance(key, str) and _json_value_matches(item) for key, item in value.items()
         )
+    return False
+
+
+def _number_matches(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return value.bit_length() <= 53
+    if isinstance(value, float):
+        return math.isfinite(value)
     return False
 
 
