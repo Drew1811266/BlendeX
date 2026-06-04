@@ -163,6 +163,56 @@ class ServerTests(unittest.TestCase):
                 )
                 self.assertEqual(response["error"]["code"], -32602)
 
+    def test_tools_call_rejects_non_finite_json_numbers(self):
+        invalid_calls = [
+            {"value": float("nan")},
+            {"value": float("inf")},
+            {"value": float("-inf")},
+        ]
+
+        for invalid_value in invalid_calls:
+            with self.subTest(invalid_value=invalid_value):
+                response = server.handle_message(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 11,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "blendex_set_socket_value",
+                            "arguments": {
+                                "object_id": "Cube",
+                                "node_id": "Value",
+                                "socket": "Value",
+                                "value": invalid_value["value"],
+                            },
+                        },
+                    },
+                    FakeClient(),
+                )
+                self.assertEqual(response["error"]["code"], -32602)
+
+    def test_tools_call_rejects_empty_nested_batch_operation_ids_and_types(self):
+        invalid_calls = [
+            {"operations": [{"id": "", "type": "scene.inspect", "target": {}, "params": {}}]},
+            {"operations": [{"id": "op_1", "type": "", "target": {}, "params": {}}]},
+        ]
+
+        for arguments in invalid_calls:
+            with self.subTest(arguments=arguments):
+                response = server.handle_message(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 12,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "blendex_validate_batch",
+                            "arguments": arguments,
+                        },
+                    },
+                    FakeClient(),
+                )
+                self.assertEqual(response["error"]["code"], -32602)
+
     def test_tools_call_missing_required_mapping_returns_invalid_params_error(self):
         response = server.handle_message(
             {

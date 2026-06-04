@@ -1,4 +1,5 @@
 import json
+import math
 import sys
 import uuid
 from typing import Any, Dict, Optional
@@ -62,7 +63,7 @@ def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
     if schema_type == "string":
         return isinstance(value, str)
     if schema_type == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
     if schema_type == "boolean":
         return isinstance(value, bool)
     if schema_type == "null":
@@ -89,6 +90,12 @@ def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
             return False
         for key in schema.get("required", []):
             if key not in value:
+                return False
+            if (
+                key in {"id", "type"}
+                and schema.get("properties", {}).get(key, {}).get("type") == "string"
+                and (not isinstance(value[key], str) or not value[key].strip())
+            ):
                 return False
         return all(
             prop_schema is None or _value_matches_schema(prop_value, prop_schema)
