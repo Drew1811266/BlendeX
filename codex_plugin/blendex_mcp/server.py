@@ -7,6 +7,8 @@ from typing import Any, Dict, Optional
 from .blender_client import BlenderClient
 from .tools import TOOL_DEFINITIONS, tool_to_operation
 
+MAX_JSON_VALUE_DEPTH = 100
+
 
 def _content(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"content": [{"type": "text", "text": json.dumps(payload)}]}
@@ -127,16 +129,19 @@ def _is_json_value_schema(schema: Dict[str, Any]) -> bool:
     }
 
 
-def _json_value_matches(value: Any) -> bool:
+def _json_value_matches(value: Any, depth: int = 0) -> bool:
+    if depth > MAX_JSON_VALUE_DEPTH:
+        return False
     if isinstance(value, bool) or isinstance(value, str) or value is None:
         return True
     if isinstance(value, (int, float)):
         return _number_matches(value)
     if isinstance(value, list):
-        return all(_json_value_matches(item) for item in value)
+        return all(_json_value_matches(item, depth + 1) for item in value)
     if isinstance(value, dict):
         return all(
-            isinstance(key, str) and _json_value_matches(item) for key, item in value.items()
+            isinstance(key, str) and _json_value_matches(item, depth + 1)
+            for key, item in value.items()
         )
     return False
 
