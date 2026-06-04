@@ -250,6 +250,32 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(response["jsonrpc"], "2.0")
         self.assertEqual(response["error"]["code"], -32700)
 
+    def test_handle_line_rejects_integer_digit_limit_error_without_crashing(self):
+        huge_integer = "1" * 10000
+        line = (
+            '{"jsonrpc":"2.0","id":19,"method":"tools/call","params":'
+            '{"name":"blendex_set_socket_value","arguments":'
+            '{"object_id":"Cube","node_id":"Value","socket":"Value","value":'
+            f"{huge_integer}"
+            "}}}\n"
+        )
+        original_loads = server.json.loads
+
+        def loads_with_digit_limit(raw):
+            if raw == line:
+                raise ValueError("Exceeds the limit for integer string conversion")
+            return original_loads(raw)
+
+        server.json.loads = loads_with_digit_limit
+        try:
+            response_line = server.handle_line(line, FakeClient())
+        finally:
+            server.json.loads = original_loads
+        response = original_loads(response_line)
+
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["code"], -32700)
+
     def test_tools_call_accepts_ordinary_nested_json_value(self):
         client = FakeClient()
         nested_value = {"items": [1, {"enabled": True, "name": "ok"}]}
