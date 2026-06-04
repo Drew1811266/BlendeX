@@ -88,7 +88,8 @@ def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
             return False
         properties = schema.get("properties", {})
         extra_keys = set(value) - set(properties)
-        if extra_keys and schema.get("additionalProperties") is False:
+        additional_properties = schema.get("additionalProperties", True)
+        if extra_keys and additional_properties is False:
             return False
         for key in schema.get("required", []):
             if key not in value:
@@ -99,11 +100,16 @@ def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
                 and (not isinstance(value[key], str) or not value[key].strip())
             ):
                 return False
-        return all(
-            prop_schema is None or _value_matches_schema(prop_value, prop_schema)
-            for key, prop_value in value.items()
-            for prop_schema in [properties.get(key)]
-        )
+        for key, prop_value in value.items():
+            if not isinstance(key, str):
+                return False
+            prop_schema = properties.get(key)
+            if prop_schema is not None:
+                if not _value_matches_schema(prop_value, prop_schema):
+                    return False
+            elif not _json_value_matches(prop_value):
+                return False
+        return True
     return True
 
 

@@ -215,6 +215,62 @@ class ServerTests(unittest.TestCase):
 
         self.assertEqual(response["error"]["code"], -32602)
 
+    def test_tools_call_rejects_invalid_json_values_in_batch_operation_params(self):
+        invalid_calls = [
+            {"params": {"value": float("nan")}},
+            {"params": {"value": float("inf")}},
+        ]
+
+        for operation_fields in invalid_calls:
+            with self.subTest(operation_fields=operation_fields):
+                response = server.handle_message(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 14,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "blendex_validate_batch",
+                            "arguments": {
+                                "operations": [
+                                    {
+                                        "id": "op_1",
+                                        "type": "scene.inspect",
+                                        "target": {},
+                                        **operation_fields,
+                                    }
+                                ]
+                            },
+                        },
+                    },
+                    FakeClient(),
+                )
+                self.assertEqual(response["error"]["code"], -32602)
+
+    def test_tools_call_rejects_invalid_json_values_in_batch_operation_target(self):
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "method": "tools/call",
+                "params": {
+                    "name": "blendex_validate_batch",
+                    "arguments": {
+                        "operations": [
+                            {
+                                "id": "op_1",
+                                "type": "scene.inspect",
+                                "target": {"x": [10**1000]},
+                                "params": {},
+                            }
+                        ]
+                    },
+                },
+            },
+            FakeClient(),
+        )
+
+        self.assertEqual(response["error"]["code"], -32602)
+
     def test_tools_call_rejects_empty_nested_batch_operation_ids_and_types(self):
         invalid_calls = [
             {"operations": [{"id": "", "type": "scene.inspect", "target": {}, "params": {}}]},
