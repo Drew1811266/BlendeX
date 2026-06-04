@@ -85,6 +85,99 @@ class ValidationTests(unittest.TestCase):
 
                 self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
+    def test_accepts_create_modifier_request(self):
+        request = OperationRequest(
+            id="req_modifier",
+            type="geometry_nodes.create_modifier",
+            target={"object_id": "Cube"},
+            params={"modifier_id": "BlendeX Geometry"},
+        )
+
+        validate_request(request)
+
+    def test_accepts_link_sockets_request(self):
+        request = OperationRequest(
+            id="req_link",
+            type="geometry_nodes.link_sockets",
+            target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+            params={
+                "from_node": "Group Input",
+                "from_socket": "Geometry",
+                "to_node": "Group Output",
+                "to_socket": "Geometry",
+            },
+        )
+
+        validate_request(request)
+
+    def test_rejects_link_sockets_missing_endpoint(self):
+        request = OperationRequest(
+            id="req_link_bad",
+            type="geometry_nodes.link_sockets",
+            target={"object_id": "Cube"},
+            params={"from_node": "A", "from_socket": "Geometry", "to_node": "B"},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
+    def test_accepts_set_socket_value_request(self):
+        request = OperationRequest(
+            id="req_value",
+            type="geometry_nodes.set_socket_value",
+            target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+            params={"node_id": "Value", "socket": "Value", "value": 2.5},
+        )
+
+        validate_request(request)
+
+    def test_rejects_set_socket_value_missing_value_key(self):
+        request = OperationRequest(
+            id="req_value_bad",
+            type="geometry_nodes.set_socket_value",
+            target={"object_id": "Cube"},
+            params={"node_id": "Value", "socket": "Value"},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
+    def test_accepts_batch_validation_request(self):
+        request = OperationRequest(
+            id="req_batch",
+            type="safety.validate_batch",
+            target={},
+            params={
+                "operations": [
+                    {
+                        "id": "op_1",
+                        "type": "scene.inspect",
+                        "target": {},
+                        "params": {},
+                    }
+                ]
+            },
+        )
+
+        validate_request(request)
+
+    def test_rejects_batch_validation_without_operations_array(self):
+        request = OperationRequest(
+            id="req_batch_bad",
+            type="safety.validate_batch",
+            target={},
+            params={"operations": "not a list"},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
 
 if __name__ == "__main__":
     unittest.main()
