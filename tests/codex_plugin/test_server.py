@@ -144,6 +144,25 @@ class ServerTests(unittest.TestCase):
                 )
                 self.assertEqual(response["error"]["code"], -32602)
 
+    def test_tools_call_rejects_invalid_v0_2_arguments(self):
+        invalid_calls = [
+            {"name": "blendex_create_modifier", "arguments": {"object_id": 3}},
+            {"name": "blendex_link_sockets", "arguments": {"object_id": "Cube"}},
+            {
+                "name": "blendex_set_socket_value",
+                "arguments": {"object_id": "Cube", "node_id": "Value", "socket": "Value"},
+            },
+            {"name": "blendex_validate_batch", "arguments": {"operations": "not a list"}},
+        ]
+
+        for params in invalid_calls:
+            with self.subTest(params=params):
+                response = server.handle_message(
+                    {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": params},
+                    FakeClient(),
+                )
+                self.assertEqual(response["error"]["code"], -32602)
+
     def test_tools_call_missing_required_mapping_returns_invalid_params_error(self):
         response = server.handle_message(
             {

@@ -48,23 +48,71 @@ def _validate_tool_call_params(params: Any) -> Optional[Dict[str, Any]]:
     return {"name": name, "arguments": arguments}
 
 
+def _tool_schema(name: str) -> Optional[Dict[str, Any]]:
+    for tool in TOOL_DEFINITIONS:
+        if tool["name"] == name:
+            return tool["inputSchema"]
+    return None
+
+
+def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
+    if "oneOf" in schema:
+        return any(_value_matches_schema(value, option) for option in schema["oneOf"])
+    schema_type = schema.get("type")
+    if schema_type == "string":
+        return isinstance(value, str)
+    if schema_type == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if schema_type == "boolean":
+        return isinstance(value, bool)
+    if schema_type == "null":
+        return value is None
+    if schema_type == "array":
+        if not isinstance(value, list):
+            return False
+        min_items = schema.get("minItems")
+        if min_items is not None and len(value) < min_items:
+            return False
+        max_items = schema.get("maxItems")
+        if max_items is not None and len(value) > max_items:
+            return False
+        item_schema = schema.get("items")
+        if item_schema is None:
+            return True
+        return all(_value_matches_schema(item, item_schema) for item in value)
+    if schema_type == "object":
+        if not isinstance(value, dict):
+            return False
+        properties = schema.get("properties", {})
+        extra_keys = set(value) - set(properties)
+        if extra_keys and schema.get("additionalProperties") is False:
+            return False
+        for key in schema.get("required", []):
+            if key not in value:
+                return False
+        return all(
+            prop_schema is None or _value_matches_schema(prop_value, prop_schema)
+            for key, prop_value in value.items()
+            for prop_schema in [properties.get(key)]
+        )
+    return True
+
+
 def _validate_tool_arguments(name: str, arguments: Dict[str, Any]) -> Optional[str]:
-    if name in {"blendex_scan_capabilities", "blendex_inspect_scene"}:
-        if arguments:
-            return "Invalid params: tool does not accept arguments"
+    schema = _tool_schema(name)
+    if schema is None:
         return None
-    if name == "blendex_create_node":
-        allowed = {"object_id", "modifier_id", "node_type", "label"}
-        extra_keys = sorted(set(arguments) - allowed)
-        if extra_keys:
-            return f"Invalid params: unexpected argument {extra_keys[0]}"
-        required = {"object_id", "node_type"}
-        missing_keys = sorted(required - set(arguments))
-        if missing_keys:
-            return f"Invalid params: missing argument {missing_keys[0]}"
-        for key in ("object_id", "node_type", "modifier_id", "label"):
-            if key in arguments and not isinstance(arguments[key], str):
-                return f"Invalid params: {key} must be a string"
+    properties = schema.get("properties", {})
+    extra_keys = sorted(set(arguments) - set(properties))
+    if extra_keys and schema.get("additionalProperties") is False:
+        return f"Invalid params: unexpected argument {extra_keys[0]}"
+    for key in schema.get("required", []):
+        if key not in arguments:
+            return f"Invalid params: missing argument {key}"
+    for key, value in arguments.items():
+        prop_schema = properties.get(key)
+        if prop_schema is not None and not _value_matches_schema(value, prop_schema):
+            return f"Invalid params: {key} has invalid type"
     return None
 
 

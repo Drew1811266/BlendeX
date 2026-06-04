@@ -27,6 +27,75 @@ class ToolMappingTests(unittest.TestCase):
         self.assertEqual(operation["target"]["object_id"], "Cube")
         self.assertEqual(operation["params"]["node_type"], "GeometryNodeJoinGeometry")
 
+    def test_tool_names_include_v0_2_graph_kernel_tools(self):
+        names = tool_names()
+
+        for name in [
+            "blendex_create_carrier_mesh",
+            "blendex_create_modifier",
+            "blendex_inspect_tree",
+            "blendex_set_socket_value",
+            "blendex_link_sockets",
+            "blendex_label_node",
+            "blendex_validate_batch",
+            "blendex_dry_run",
+        ]:
+            self.assertIn(name, names)
+
+    def test_create_modifier_maps_to_structured_operation(self):
+        operation = tool_to_operation(
+            "blendex_create_modifier",
+            {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+            request_id="req_modifier",
+        )
+
+        self.assertEqual(operation["type"], "geometry_nodes.create_modifier")
+        self.assertEqual(operation["target"]["object_id"], "Cube")
+        self.assertEqual(operation["params"]["modifier_id"], "BlendeX Geometry")
+
+    def test_set_socket_value_maps_to_structured_operation(self):
+        operation = tool_to_operation(
+            "blendex_set_socket_value",
+            {
+                "object_id": "Cube",
+                "modifier_id": "BlendeX Geometry",
+                "node_id": "Value",
+                "socket": "Value",
+                "value": 3.0,
+            },
+            request_id="req_value",
+        )
+
+        self.assertEqual(operation["type"], "geometry_nodes.set_socket_value")
+        self.assertEqual(operation["params"]["value"], 3.0)
+
+    def test_link_sockets_maps_to_structured_operation(self):
+        operation = tool_to_operation(
+            "blendex_link_sockets",
+            {
+                "object_id": "Cube",
+                "modifier_id": "BlendeX Geometry",
+                "from_node": "Group Input",
+                "from_socket": "Geometry",
+                "to_node": "Group Output",
+                "to_socket": "Geometry",
+            },
+            request_id="req_link",
+        )
+
+        self.assertEqual(operation["type"], "geometry_nodes.link_sockets")
+        self.assertEqual(operation["params"]["to_socket"], "Geometry")
+
+    def test_validate_batch_maps_operations_array(self):
+        operation = tool_to_operation(
+            "blendex_validate_batch",
+            {"operations": [{"id": "op_1", "type": "scene.inspect", "target": {}, "params": {}}]},
+            request_id="req_batch",
+        )
+
+        self.assertEqual(operation["type"], "safety.validate_batch")
+        self.assertEqual(operation["params"]["operations"][0]["type"], "scene.inspect")
+
     def test_inspect_scene_maps_to_structured_operation(self):
         operation = tool_to_operation("blendex_inspect_scene", {}, request_id="req_x")
 
