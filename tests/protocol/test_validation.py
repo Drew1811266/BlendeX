@@ -146,6 +146,39 @@ class ValidationTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
+    def test_rejects_set_socket_value_nested_non_finite_values(self):
+        invalid_values = [
+            [float("nan")],
+            {"x": float("inf")},
+        ]
+
+        for value in invalid_values:
+            with self.subTest(value=value):
+                request = OperationRequest(
+                    id="req_value_bad",
+                    type="geometry_nodes.set_socket_value",
+                    target={"object_id": "Cube"},
+                    params={"node_id": "Value", "socket": "Value", "value": value},
+                )
+
+                with self.assertRaises(BlendexError) as raised:
+                    validate_request(request)
+
+                self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
+    def test_rejects_set_socket_value_nested_huge_integer(self):
+        request = OperationRequest(
+            id="req_value_bad",
+            type="geometry_nodes.set_socket_value",
+            target={"object_id": "Cube"},
+            params={"node_id": "Value", "socket": "Value", "value": [10**1000]},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
     def test_accepts_batch_validation_request(self):
         request = OperationRequest(
             id="req_batch",
@@ -177,6 +210,36 @@ class ValidationTests(unittest.TestCase):
             validate_request(request)
 
         self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
+    def test_rejects_batch_operation_nested_invalid_json_values(self):
+        invalid_operations = [
+            {
+                "id": "op_1",
+                "type": "geometry_nodes.set_socket_value",
+                "target": {"object_id": "Cube"},
+                "params": {"value": [float("nan")]},
+            },
+            {
+                "id": "op_2",
+                "type": "geometry_nodes.inspect_tree",
+                "target": {"object_id": "Cube", "x": [10**1000]},
+                "params": {},
+            },
+        ]
+
+        for operation in invalid_operations:
+            with self.subTest(operation=operation):
+                request = OperationRequest(
+                    id="req_batch_bad",
+                    type="safety.validate_batch",
+                    target={},
+                    params={"operations": [operation]},
+                )
+
+                with self.assertRaises(BlendexError) as raised:
+                    validate_request(request)
+
+                self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
 
 if __name__ == "__main__":

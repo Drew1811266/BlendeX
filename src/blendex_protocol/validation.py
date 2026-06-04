@@ -1,4 +1,5 @@
-from typing import Set
+import math
+from typing import Any, Set
 
 from .errors import BlendexError
 from .messages import OperationRequest
@@ -24,6 +25,8 @@ ALLOWED_OPERATIONS: Set[str] = {
     "safety.check_ownership",
 }
 
+MAX_JSON_VALUE_DEPTH = 100
+
 
 def _require_string(mapping, key: str, message: str) -> None:
     value = mapping.get(key)
@@ -33,6 +36,38 @@ def _require_string(mapping, key: str, message: str) -> None:
 
 def _require_value_key(mapping, key: str, message: str) -> None:
     if key not in mapping:
+        raise BlendexError("VALIDATION_FAILED", message)
+
+
+def _number_matches(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return value.bit_length() <= 53
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return False
+
+
+def _json_value_matches(value: Any, depth: int = 0) -> bool:
+    if depth > MAX_JSON_VALUE_DEPTH:
+        return False
+    if isinstance(value, bool) or isinstance(value, str) or value is None:
+        return True
+    if isinstance(value, (int, float)):
+        return _number_matches(value)
+    if isinstance(value, list):
+        return all(_json_value_matches(item, depth + 1) for item in value)
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _json_value_matches(item, depth + 1)
+            for key, item in value.items()
+        )
+    return False
+
+
+def _require_json_value(value: Any, message: str) -> None:
+    if not _json_value_matches(value):
         raise BlendexError("VALIDATION_FAILED", message)
 
 
@@ -46,6 +81,26 @@ def _require_operations(params) -> None:
                 "VALIDATION_FAILED",
                 f"Batch operation at index {index} must be an object.",
             )
+        target = operation.get("target", {})
+        params_value = operation.get("params", {})
+        if not isinstance(target, dict):
+            raise BlendexError(
+                "VALIDATION_FAILED",
+                f"Batch operation at index {index} target must be an object.",
+            )
+        if not isinstance(params_value, dict):
+            raise BlendexError(
+                "VALIDATION_FAILED",
+                f"Batch operation at index {index} params must be an object.",
+            )
+        _require_json_value(
+            target,
+            f"Batch operation at index {index} target contains invalid JSON value.",
+        )
+        _require_json_value(
+            params_value,
+            f"Batch operation at index {index} params contains invalid JSON value.",
+        )
 
 
 def validate_request(request: OperationRequest) -> None:
@@ -80,6 +135,10 @@ def validate_request(request: OperationRequest) -> None:
         _require_string(request.params, "node_id", "set_socket_value requires params.node_id.")
         _require_string(request.params, "socket", "set_socket_value requires params.socket.")
         _require_value_key(request.params, "value", "set_socket_value requires params.value.")
+        _require_json_value(
+            request.params.get("value"),
+            "set_socket_value params.value contains invalid JSON value.",
+        )
     if request.type == "geometry_nodes.label_node":
         _require_string(request.params, "node_id", "label_node requires params.node_id.")
         _require_string(request.params, "label", "label_node requires params.label.")

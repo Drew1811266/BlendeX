@@ -59,6 +59,30 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(response["error"]["code"], "VALIDATION_FAILED")
         self.assertEqual(STATE.recent_logs[0].error_code, "VALIDATION_FAILED")
 
+    def test_dispatch_rejects_invalid_socket_json_value_before_executor(self):
+        class RecordingExecutor:
+            def __init__(self):
+                self.calls = []
+
+            def execute(self, request):
+                self.calls.append(request)
+                return {"ok": True}
+
+        executor = RecordingExecutor()
+        response = dispatch_payload(
+            {
+                "id": "req_bad_value",
+                "type": "geometry_nodes.set_socket_value",
+                "target": {"object_id": "Cube"},
+                "params": {"node_id": "Value", "socket": "Value", "value": [float("nan")]},
+            },
+            executor=executor,
+        )
+
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "VALIDATION_FAILED")
+        self.assertEqual(executor.calls, [])
+
     def test_dispatch_converts_executor_exception_to_json_response(self):
         class RaisingExecutor:
             def execute(self, request):
