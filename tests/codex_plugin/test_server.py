@@ -232,6 +232,24 @@ class ServerTests(unittest.TestCase):
 
         self.assertEqual(response["error"]["code"], -32602)
 
+    def test_handle_line_rejects_decoder_recursion_without_crashing(self):
+        depth = 1100
+        deep_value = "[" * depth + "0" + "]" * depth
+        response_line = server.handle_line(
+            (
+                '{"jsonrpc":"2.0","id":18,"method":"tools/call","params":'
+                '{"name":"blendex_set_socket_value","arguments":'
+                '{"object_id":"Cube","node_id":"Value","socket":"Value","value":'
+                f"{deep_value}"
+                "}}}\n"
+            ),
+            FakeClient(),
+        )
+        response = json.loads(response_line)
+
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["code"], -32700)
+
     def test_tools_call_accepts_ordinary_nested_json_value(self):
         client = FakeClient()
         nested_value = {"items": [1, {"enabled": True, "name": "ok"}]}

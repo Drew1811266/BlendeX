@@ -224,7 +224,7 @@ def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[D
 def handle_line(line: str, client: BlenderClient) -> Optional[str]:
     try:
         message = json.loads(line)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError):
         response = json_rpc_error(None, -32700, "Parse error")
     else:
         response = handle_message(message, client)
