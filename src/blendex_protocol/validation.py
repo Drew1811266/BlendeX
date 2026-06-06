@@ -126,6 +126,12 @@ def validate_request(request: OperationRequest) -> None:
                 "create_node requires params.node_type.",
                 retry_hint="Use a node type returned by capabilities.scan.",
             )
+    if request.type == "scene.create_carrier_mesh" and "name" in request.params:
+        _require_string(
+            request.params,
+            "name",
+            "create_carrier_mesh params.name must be a non-empty string.",
+        )
     if request.type == "geometry_nodes.link_sockets":
         _require_string(request.params, "from_node", "link_sockets requires params.from_node.")
         _require_string(request.params, "from_socket", "link_sockets requires params.from_socket.")

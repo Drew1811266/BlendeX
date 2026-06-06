@@ -1,4 +1,10 @@
+import pathlib
+import sys
 import unittest
+
+_SRC = pathlib.Path(__file__).resolve().parents[2] / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 from blendex_protocol.errors import BlendexError
 from blendex_protocol.messages import OperationRequest
@@ -94,6 +100,19 @@ class ValidationTests(unittest.TestCase):
         )
 
         validate_request(request)
+
+    def test_rejects_create_carrier_mesh_non_string_name(self):
+        request = OperationRequest(
+            id="req_carrier_bad",
+            type="scene.create_carrier_mesh",
+            target={},
+            params={"name": 123},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
     def test_accepts_link_sockets_request(self):
         request = OperationRequest(

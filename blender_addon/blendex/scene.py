@@ -173,7 +173,14 @@ class _BpySceneContext:
 
     @property
     def objects(self) -> Any:
-        return self._bpy.data.objects
+        context = getattr(self._bpy, "context", None)
+        scene_objects = getattr(getattr(context, "scene", None), "objects", None)
+        if scene_objects is not None:
+            return scene_objects
+        view_layer_objects = getattr(getattr(context, "view_layer", None), "objects", None)
+        if view_layer_objects is not None:
+            return view_layer_objects
+        return getattr(getattr(self._bpy, "data", None), "objects", [])
 
     @property
     def selected_objects(self) -> Any:

@@ -1,6 +1,8 @@
+import sys
+import types
 import unittest
 
-from blender_addon.blendex.scene import create_carrier_mesh, inspect_scene
+from blender_addon.blendex.scene import bpy_scene_context, create_carrier_mesh, inspect_scene
 
 
 class FakeNodeGroup:
@@ -146,6 +148,29 @@ class SceneInspectionTests(unittest.TestCase):
         self.assertEqual(context.selected_objects[0].name, "Generated Carrier")
         self.assertEqual(context.object.name, "Generated Carrier")
         self.assertFalse(existing.selected)
+
+    def test_bpy_scene_context_uses_current_scene_objects_before_global_data_objects(self):
+        original_bpy = sys.modules.get("bpy")
+        scene_objects = [FakeObject("Current Scene")]
+        global_objects = [FakeObject("Global Data")]
+        fake_bpy = types.SimpleNamespace(
+            app=types.SimpleNamespace(version=(4, 2, 1)),
+            context=types.SimpleNamespace(
+                scene=types.SimpleNamespace(objects=scene_objects),
+                view_layer=types.SimpleNamespace(objects=[FakeObject("View Layer")]),
+            ),
+            data=types.SimpleNamespace(objects=global_objects),
+        )
+        sys.modules["bpy"] = fake_bpy
+        try:
+            context = bpy_scene_context()
+
+            self.assertIs(context.objects, scene_objects)
+        finally:
+            if original_bpy is None:
+                sys.modules.pop("bpy", None)
+            else:
+                sys.modules["bpy"] = original_bpy
 
 
 if __name__ == "__main__":
