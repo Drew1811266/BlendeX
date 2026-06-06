@@ -3,6 +3,7 @@ import types
 import unittest
 
 from blender_addon.blendex.capabilities import scan_bpy_capabilities, scan_capabilities
+from codex_plugin.blendex_mcp.catalog import semantic_for_node
 
 
 class FakeBlender:
@@ -148,6 +149,14 @@ class CapabilityTests(unittest.TestCase):
             "MUTATED",
             second["node_types"]["GeometryNodeJoinGeometry"]["semantic"]["typical_inputs"],
         )
+
+    def test_semantic_for_node_returns_independent_metadata(self):
+        first = semantic_for_node("GeometryNodeJoinGeometry")
+        first["typical_inputs"].append("MUTATED")
+
+        second = semantic_for_node("GeometryNodeJoinGeometry")
+
+        self.assertNotIn("MUTATED", second["typical_inputs"])
 
     def test_scan_bpy_capabilities_reads_template_sockets_when_available(self):
         class FakeSocketTemplate:

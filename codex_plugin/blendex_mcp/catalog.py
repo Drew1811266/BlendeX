@@ -1,3 +1,4 @@
+import copy
 from typing import Any, Dict
 
 
@@ -92,4 +93,4 @@ SEMANTIC_NODE_CATALOG: Dict[str, Dict[str, Any]] = {
 
 
 def semantic_for_node(node_type: str) -> Dict[str, Any]:
-    return dict(SEMANTIC_NODE_CATALOG.get(node_type, {}))
+    return copy.deepcopy(SEMANTIC_NODE_CATALOG.get(node_type, {}))
