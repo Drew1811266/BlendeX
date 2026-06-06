@@ -127,6 +127,99 @@ class CapabilityTests(unittest.TestCase):
         self.assertIn("semantic", result["node_types"]["ShaderNodeMath"])
         self.assertIn("semantic", result["node_types"]["NodeGroupInput"])
 
+    def test_scan_bpy_capabilities_discovers_dir_candidates_validated_by_geometry_tree(self):
+        class GeometryNode:
+            @classmethod
+            def __subclasses__(cls):
+                return []
+
+        class FunctionNode:
+            @classmethod
+            def __subclasses__(cls):
+                return []
+
+        class ShaderNode:
+            @classmethod
+            def __subclasses__(cls):
+                return []
+
+        valid_node_identifiers = {
+            "GeometryNodeJoinGeometry",
+            "FunctionNodeRandomValue",
+            "ShaderNodeMath",
+            "ShaderNodeVectorMath",
+            "NodeGroupInput",
+            "NodeGroupOutput",
+        }
+
+        class FakeNodes:
+            def __init__(self):
+                self.created = []
+                self.removed = []
+
+            def new(self, type):
+                if type not in valid_node_identifiers:
+                    raise RuntimeError(f"{type} is not valid in a GeometryNodeTree")
+                node = types.SimpleNamespace(identifier=type)
+                self.created.append(node)
+                return node
+
+            def remove(self, node):
+                self.removed.append(node)
+
+        class FakeNodeGroup:
+            def __init__(self, name, tree_type):
+                self.name = name
+                self.tree_type = tree_type
+                self.nodes = FakeNodes()
+
+        class FakeNodeGroups:
+            def __init__(self):
+                self.created = []
+                self.removed = []
+
+            def new(self, name, tree_type):
+                group = FakeNodeGroup(name, tree_type)
+                self.created.append(group)
+                return group
+
+            def remove(self, group):
+                self.removed.append(group)
+
+        fake_node_groups = FakeNodeGroups()
+        fake_bpy = types.SimpleNamespace(
+            app=types.SimpleNamespace(version=(5, 1, 2)),
+            types=types.SimpleNamespace(
+                GeometryNode=GeometryNode,
+                FunctionNode=FunctionNode,
+                ShaderNode=ShaderNode,
+                GeometryNodeJoinGeometry=type("GeometryNodeJoinGeometry", (), {}),
+                FunctionNodeRandomValue=type("FunctionNodeRandomValue", (), {}),
+                ShaderNodeMath=type("ShaderNodeMath", (), {}),
+                ShaderNodeVectorMath=type("ShaderNodeVectorMath", (), {}),
+                ShaderNodeBsdfPrincipled=type("ShaderNodeBsdfPrincipled", (), {}),
+                NodeGroupInput=type("NodeGroupInput", (), {}),
+                NodeGroupOutput=type("NodeGroupOutput", (), {}),
+            ),
+            data=types.SimpleNamespace(node_groups=fake_node_groups),
+        )
+
+        result = self._scan_with_fake_bpy(fake_bpy)
+
+        self.assertEqual(result["blender_version"], [5, 1, 2])
+        self.assertEqual(
+            set(result["node_types"]),
+            valid_node_identifiers,
+        )
+        self.assertNotIn("ShaderNodeBsdfPrincipled", result["node_types"])
+        self.assertEqual(len(fake_node_groups.created), 1)
+        self.assertEqual(fake_node_groups.created[0].tree_type, "GeometryNodeTree")
+        self.assertEqual(fake_node_groups.removed, fake_node_groups.created)
+        self.assertEqual(
+            len(fake_node_groups.created[0].nodes.removed),
+            len(valid_node_identifiers),
+        )
+
     def test_scan_merges_semantic_catalog_for_available_nodes_only(self):
         class Runtime:
             version = (4, 3, 0)
