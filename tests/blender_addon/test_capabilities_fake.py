@@ -38,6 +38,7 @@ class CapabilityTests(unittest.TestCase):
                 "capabilities.supported_operations",
                 "geometry_nodes.create_node",
                 "geometry_nodes.inspect_tree",
+                "scene.create_carrier_mesh",
                 "scene.inspect",
             ],
         )

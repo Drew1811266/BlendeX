@@ -12,6 +12,7 @@ except Exception:
 IMPLEMENTED_OPERATIONS = {
     "capabilities.scan",
     "capabilities.supported_operations",
+    "scene.create_carrier_mesh",
     "scene.inspect",
     "geometry_nodes.inspect_tree",
     "geometry_nodes.create_node",

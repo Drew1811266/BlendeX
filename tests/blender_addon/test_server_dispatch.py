@@ -131,6 +131,32 @@ class DispatchTests(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertEqual(response["result"]["selected_object"], "Cube")
 
+    def test_dispatch_handles_carrier_mesh_creation_without_executor(self):
+        calls = []
+
+        def fake_create_carrier_mesh(name):
+            calls.append(name)
+            return {"object_id": name, "name": name, "selected_object": name}
+
+        original = server._create_bpy_carrier_mesh
+        server._create_bpy_carrier_mesh = fake_create_carrier_mesh
+        try:
+            response = dispatch_payload(
+                {
+                    "id": "req_carrier",
+                    "type": "scene.create_carrier_mesh",
+                    "target": {},
+                    "params": {"name": "Generated Carrier"},
+                },
+                executor=None,
+            )
+        finally:
+            server._create_bpy_carrier_mesh = original
+
+        self.assertEqual(calls, ["Generated Carrier"])
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["result"]["object_id"], "Generated Carrier")
+
 
 class MainThreadDispatchTests(unittest.TestCase):
     def setUp(self):

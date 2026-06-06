@@ -47,29 +47,15 @@ def _scan_bpy_capabilities() -> Dict[str, Any]:
 
 
 def _inspect_bpy_scene() -> Dict[str, Any]:
-    import bpy
+    from .scene import bpy_scene_context, inspect_scene
 
-    objects = []
-    for obj in bpy.data.objects:
-        modifiers = []
-        for modifier in obj.modifiers:
-            modifier_get = getattr(modifier, "get", None)
-            owned = bool(modifier_get("blendex_owned", False)) if callable(modifier_get) else False
-            modifiers.append(
-                {
-                    "name": modifier.name,
-                    "type": modifier.type,
-                    "blendex_owned": owned,
-                }
-            )
-        objects.append({"name": obj.name, "type": obj.type, "modifiers": modifiers})
-    selected_objects = [obj.name for obj in getattr(bpy.context, "selected_objects", [])]
-    active_object = getattr(bpy.context, "object", None)
-    return {
-        "objects": objects,
-        "selected_objects": selected_objects,
-        "selected_object": active_object.name if active_object is not None else None,
-    }
+    return inspect_scene(bpy_scene_context())
+
+
+def _create_bpy_carrier_mesh(name: str) -> Dict[str, Any]:
+    from .scene import bpy_scene_context, create_carrier_mesh
+
+    return create_carrier_mesh(bpy_scene_context(), name)
 
 
 def _implemented_operations() -> Dict[str, Any]:
@@ -101,6 +87,8 @@ def dispatch_payload(
         elif request.type == "scene.inspect":
             inspector = scene_inspector or _inspect_bpy_scene
             result = inspector()
+        elif request.type == "scene.create_carrier_mesh":
+            result = _create_bpy_carrier_mesh(request.params.get("name", "BlendeX Carrier"))
         elif executor is None:
             result = {"validated": True}
         else:
@@ -137,6 +125,7 @@ def _dispatch_payload_with_factory(payload: Any, executor_factory: Callable[[], 
     if isinstance(payload, dict) and payload.get("type") in {
         "capabilities.scan",
         "capabilities.supported_operations",
+        "scene.create_carrier_mesh",
         "scene.inspect",
     }:
         return dispatch_payload(payload, executor=None)
