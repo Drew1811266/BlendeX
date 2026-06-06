@@ -122,6 +122,15 @@ class SceneInspectionTests(unittest.TestCase):
             {"object_id": "Plane", "reason": "selected_mesh_without_blendex_modifier"},
         )
 
+    def test_inspect_scene_does_not_recommend_mesh_with_unowned_geometry_nodes_modifier(self):
+        plane = FakeObject("Plane")
+        plane.modifiers.append(FakeModifier("User Geometry Nodes"))
+        context = FakeSceneContext([plane], selected_object=plane)
+
+        result = inspect_scene(context)
+
+        self.assertIsNone(result["recommended_target"])
+
     def test_create_carrier_mesh_uses_context_factory_and_updates_selection(self):
         existing = FakeObject("Existing")
         context = FakeSceneContext([existing], selected_object=existing)

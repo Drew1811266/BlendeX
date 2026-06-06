@@ -72,7 +72,10 @@ def _recommended_target(
                     "modifier_id": modifier.get("name", ""),
                     "reason": "selected_blendex_modifier",
                 }
-        if obj.get("type") == "MESH":
+        has_geometry_nodes_modifier = any(
+            modifier.get("type") == "NODES" for modifier in obj.get("modifiers", [])
+        )
+        if obj.get("type") == "MESH" and not has_geometry_nodes_modifier:
             return {
                 "object_id": obj["id"],
                 "reason": "selected_mesh_without_blendex_modifier",
