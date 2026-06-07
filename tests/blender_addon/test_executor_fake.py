@@ -76,6 +76,12 @@ class FakeModifier:
         return self.props.get(key, default)
 
 
+class FakeNonNodesModifier:
+    def __init__(self, name):
+        self.name = name
+        self.type = "BEVEL"
+
+
 class FakeModifierCollection(dict):
     def new(self, name, type):
         modifier = FakeModifier(name, owned=False)
@@ -446,6 +452,41 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
         self.assertEqual(tree.nodes.created, [])
 
+    def test_validate_create_node_checks_type_and_ownership_without_mutation(self):
+        context = FakeContext()
+        tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group
+        tree.nodes = FakeBlenderNodeCollection()
+        executor = GeometryNodesExecutor(context)
+        request = OperationRequest(
+            id="req_validate_node",
+            type="geometry_nodes.create_node",
+            target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+            params={"node_type": "GeometryNodeJoinGeometry"},
+        )
+
+        result = executor.validate(request)
+
+        self.assertEqual(result, {"validated": True})
+        self.assertEqual(tree.nodes.created, [])
+
+    def test_validate_create_node_rejects_unavailable_type_without_mutation(self):
+        context = FakeContext()
+        tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group
+        tree.nodes = FakeBlenderNodeCollection()
+        executor = GeometryNodesExecutor(context)
+        request = OperationRequest(
+            id="req_validate_node",
+            type="geometry_nodes.create_node",
+            target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+            params={"node_type": "ShaderNodeValue"},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            executor.validate(request)
+
+        self.assertEqual(raised.exception.code, "NODE_TYPE_NOT_FOUND")
+        self.assertEqual(tree.nodes.created, [])
+
     def test_create_modifier_creates_or_reuses_nodes_modifier_and_marks_owned(self):
         context = FakeContext()
         del context.objects["Cube"].modifiers["BlendeX Geometry"]
@@ -468,6 +509,22 @@ class ExecutorTests(unittest.TestCase):
         self.assertTrue(result["blendex_owned"])
         self.assertTrue(modifier.get("blendex_owned"))
         self.assertTrue(modifier.node_group.get("blendex_owned"))
+
+    def test_validate_create_modifier_rejects_existing_non_nodes_modifier(self):
+        context = FakeContext()
+        context.objects["Cube"].modifiers["BlendeX Geometry"] = FakeNonNodesModifier("BlendeX Geometry")
+        executor = GeometryNodesExecutor(context)
+        request = OperationRequest(
+            id="req_validate_modifier",
+            type="geometry_nodes.create_modifier",
+            target={"object_id": "Cube"},
+            params={"modifier_id": "BlendeX Geometry"},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            executor.validate(request)
+
+        self.assertEqual(raised.exception.code, "MODIFIER_NOT_FOUND")
 
     def test_create_modifier_rejects_empty_modifier_id_before_mutation(self):
         context = FakeContext()
@@ -616,6 +673,29 @@ class ExecutorTests(unittest.TestCase):
             executor.execute(request)
 
         self.assertEqual(raised.exception.code, "SOCKET_TYPE_MISMATCH")
+
+    def test_link_sockets_validates_source_socket_before_destination_node(self):
+        context = FakeContext()
+        tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group
+        tree.nodes = FakeBlenderNodeCollection()
+        from_node = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        executor = GeometryNodesExecutor(context)
+        request = OperationRequest(
+            id="req_link_order",
+            type="geometry_nodes.link_sockets",
+            target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+            params={
+                "from_node": from_node.name,
+                "from_socket": "Missing",
+                "to_node": "Missing Destination",
+                "to_socket": "Geometry",
+            },
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            executor.validate(request)
+
+        self.assertEqual(raised.exception.code, "SOCKET_NOT_FOUND")
 
     def test_link_sockets_rejects_existing_input_link_without_replacing(self):
         context = FakeContext()

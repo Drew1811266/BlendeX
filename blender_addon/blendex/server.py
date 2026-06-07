@@ -64,6 +64,22 @@ def _implemented_operations() -> Dict[str, Any]:
     return {"supported_operations": sorted(IMPLEMENTED_OPERATIONS)}
 
 
+def _validate_batch(request: OperationRequest, executor: Any) -> Dict[str, Any]:
+    if executor is None:
+        raise BlendexError("BLENDER_NOT_CONNECTED", "Batch validation requires a Blender executor.")
+    from .safety import validate_operations
+
+    return validate_operations(request.params["operations"], executor)
+
+
+def _dry_run(request: OperationRequest, executor: Any) -> Dict[str, Any]:
+    if executor is None:
+        raise BlendexError("BLENDER_NOT_CONNECTED", "Dry run requires a Blender executor.")
+    from .safety import dry_run_operations
+
+    return dry_run_operations(request.params["operations"], executor)
+
+
 def dispatch_payload(
     payload: Any,
     executor: Any,
@@ -89,6 +105,10 @@ def dispatch_payload(
             result = inspector()
         elif request.type == "scene.create_carrier_mesh":
             result = _create_bpy_carrier_mesh(request.params.get("name", "BlendeX Carrier"))
+        elif request.type == "safety.validate_batch":
+            result = _validate_batch(request, executor)
+        elif request.type == "safety.dry_run":
+            result = _dry_run(request, executor)
         elif executor is None:
             result = {"validated": True}
         else:

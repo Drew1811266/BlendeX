@@ -21,6 +21,8 @@ IMPLEMENTED_OPERATIONS = {
     "geometry_nodes.set_socket_value",
     "geometry_nodes.label_node",
     "geometry_nodes.mark_ownership",
+    "safety.validate_batch",
+    "safety.dry_run",
 }
 
 _RUNTIME_NODE_PREFIXES = ("GeometryNode", "FunctionNode", "ShaderNode")

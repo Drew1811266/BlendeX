@@ -203,6 +203,39 @@ class DispatchTests(unittest.TestCase):
 
         self.assertIs(executor.context.objects, scene_objects)
 
+    def test_dispatch_handles_safety_validate_batch(self):
+        class ValidatingExecutor:
+            def __init__(self):
+                self.validated = []
+
+            def validate(self, request):
+                self.validated.append(request.type)
+                return {"validated": True}
+
+        executor = ValidatingExecutor()
+        response = dispatch_payload(
+            {
+                "id": "req_batch",
+                "type": "safety.validate_batch",
+                "target": {},
+                "params": {
+                    "operations": [
+                        {
+                            "id": "op_1",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {"node_type": "GeometryNodeJoinGeometry"},
+                        }
+                    ]
+                },
+            },
+            executor=executor,
+        )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["result"]["status"], "valid")
+        self.assertEqual(executor.validated, ["geometry_nodes.create_node"])
+
 
 class MainThreadDispatchTests(unittest.TestCase):
     def setUp(self):

@@ -43,12 +43,14 @@ class CapabilityTests(unittest.TestCase):
                 "geometry_nodes.link_sockets",
                 "geometry_nodes.mark_ownership",
                 "geometry_nodes.set_socket_value",
+                "safety.dry_run",
+                "safety.validate_batch",
                 "scene.create_carrier_mesh",
                 "scene.inspect",
             ],
         )
 
-    def test_scan_advertises_task5_graph_operations_but_not_future_safety_operations(self):
+    def test_scan_advertises_task6_safety_operations_but_not_future_safety_operations(self):
         result = scan_capabilities(FakeBlender())
 
         self.assertIn("geometry_nodes.create_modifier", result["supported_operations"])
@@ -56,8 +58,8 @@ class CapabilityTests(unittest.TestCase):
         self.assertIn("geometry_nodes.set_socket_value", result["supported_operations"])
         self.assertIn("geometry_nodes.label_node", result["supported_operations"])
         self.assertIn("geometry_nodes.mark_ownership", result["supported_operations"])
-        self.assertNotIn("safety.validate_batch", result["supported_operations"])
-        self.assertNotIn("safety.dry_run", result["supported_operations"])
+        self.assertIn("safety.validate_batch", result["supported_operations"])
+        self.assertIn("safety.dry_run", result["supported_operations"])
         self.assertNotIn("safety.undo_last_batch", result["supported_operations"])
 
     def test_scan_bpy_capabilities_filters_geometry_node_subclasses(self):

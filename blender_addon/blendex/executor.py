@@ -31,6 +31,56 @@ class GeometryNodesExecutor:
             retry_hint="Call capabilities.supported_operations before planning.",
         )
 
+    def validate(self, request: OperationRequest) -> Dict[str, Any]:
+        validate_request(request)
+        if request.type == "geometry_nodes.create_modifier":
+            obj = self._object(request.target["object_id"])
+            modifier_id = request.params.get("modifier_id", "BlendeX Geometry")
+            if self._collection_get(obj.modifiers, modifier_id) is not None:
+                self._modifier(obj, modifier_id)
+            return {"validated": True}
+        if request.type == "geometry_nodes.create_node":
+            node_type = request.params["node_type"]
+            if node_type not in self.context.node_types:
+                raise BlendexError(
+                    "NODE_TYPE_NOT_FOUND",
+                    f"Node type is unavailable: {node_type}",
+                    retry_hint="Refresh capabilities and choose a node type reported by Blender.",
+                )
+            obj = self._object(request.target["object_id"])
+            self._modifier(
+                obj,
+                request.target.get("modifier_id", "BlendeX Geometry"),
+                require_ownership=True,
+            )
+            return {"validated": True}
+        if request.type == "geometry_nodes.inspect_tree":
+            obj = self._object(request.target["object_id"])
+            modifier = self._modifier(obj, request.target.get("modifier_id", "BlendeX Geometry"))
+            self._existing_node_tree(modifier)
+            return {"validated": True}
+        if request.type == "geometry_nodes.link_sockets":
+            self._validate_link_sockets(request)
+            return {"validated": True}
+        if request.type == "geometry_nodes.set_socket_value":
+            self._validate_set_socket_value(request)
+            return {"validated": True}
+        if request.type == "geometry_nodes.label_node":
+            obj = self._object(request.target["object_id"])
+            modifier = self._modifier(
+                obj,
+                request.target.get("modifier_id", "BlendeX Geometry"),
+                require_ownership=True,
+            )
+            tree = self._existing_node_tree(modifier)
+            self._node(tree, request.params["node_id"])
+            return {"validated": True}
+        if request.type == "geometry_nodes.mark_ownership":
+            obj = self._object(request.target["object_id"])
+            self._modifier(obj, request.target.get("modifier_id", "BlendeX Geometry"))
+            return {"validated": True}
+        return {"validated": True}
+
     def _object(self, object_id: str) -> Any:
         obj = self._collection_get(self.context.objects, object_id)
         if obj is None:
@@ -454,6 +504,17 @@ class GeometryNodesExecutor:
             )
 
     def _set_socket_value(self, request: OperationRequest) -> Dict[str, Any]:
+        node, socket = self._validate_set_socket_value(request)
+        value = request.params["value"]
+        self._set_socket_default(socket, value)
+        return {
+            "node_id": self._node_id(node),
+            "socket": self._socket_name(socket),
+            "socket_type": self._socket_type(socket),
+            "value": value,
+        }
+
+    def _validate_set_socket_value(self, request: OperationRequest) -> tuple[Any, Any]:
         obj = self._object(request.target["object_id"])
         modifier = self._modifier(
             obj,
@@ -470,41 +531,17 @@ class GeometryNodesExecutor:
                 f"Value is incompatible with socket: {request.params['socket']}",
                 details={"socket_type": self._socket_type(socket), "value_type": type(value).__name__},
             )
-        self._set_socket_default(socket, value)
-        return {
-            "node_id": self._node_id(node),
-            "socket": self._socket_name(socket),
-            "socket_type": self._socket_type(socket),
-            "value": value,
-        }
+        return node, socket
 
     def _link_sockets(self, request: OperationRequest) -> Dict[str, Any]:
-        obj = self._object(request.target["object_id"])
-        modifier = self._modifier(
-            obj,
-            request.target.get("modifier_id", "BlendeX Geometry"),
-            require_ownership=True,
+        from_node, from_socket, to_node, to_socket, from_type = self._validate_link_sockets(request)
+        tree = self._existing_node_tree(
+            self._modifier(
+                self._object(request.target["object_id"]),
+                request.target.get("modifier_id", "BlendeX Geometry"),
+                require_ownership=True,
+            )
         )
-        tree = self._existing_node_tree(modifier)
-        from_node = self._node(tree, request.params["from_node"])
-        to_node = self._node(tree, request.params["to_node"])
-        from_socket = self._socket(from_node, request.params["from_socket"], "outputs")
-        to_socket = self._socket(to_node, request.params["to_socket"], "inputs")
-        from_type = self._socket_type(from_socket)
-        to_type = self._socket_type(to_socket)
-        if from_type != to_type:
-            raise BlendexError(
-                "SOCKET_TYPE_MISMATCH",
-                "Cannot link sockets with different types.",
-                details={"from_socket_type": from_type, "to_socket_type": to_type},
-            )
-        if self._input_has_link(tree, to_node, to_socket):
-            raise BlendexError(
-                "LINK_NOT_ALLOWED",
-                "Destination input socket already has a link.",
-                details={"to_node": self._node_id(to_node), "to_socket": self._socket_name(to_socket)},
-            )
-
         links = getattr(tree, "links", None)
         new_link = getattr(links, "new", None)
         if callable(new_link):
@@ -526,6 +563,34 @@ class GeometryNodesExecutor:
         summary.setdefault("to_socket", self._socket_name(to_socket))
         summary.setdefault("socket_type", from_type)
         return summary
+
+    def _validate_link_sockets(self, request: OperationRequest) -> tuple[Any, Any, Any, Any, str]:
+        obj = self._object(request.target["object_id"])
+        modifier = self._modifier(
+            obj,
+            request.target.get("modifier_id", "BlendeX Geometry"),
+            require_ownership=True,
+        )
+        tree = self._existing_node_tree(modifier)
+        from_node = self._node(tree, request.params["from_node"])
+        from_socket = self._socket(from_node, request.params["from_socket"], "outputs")
+        to_node = self._node(tree, request.params["to_node"])
+        to_socket = self._socket(to_node, request.params["to_socket"], "inputs")
+        from_type = self._socket_type(from_socket)
+        to_type = self._socket_type(to_socket)
+        if from_type != to_type:
+            raise BlendexError(
+                "SOCKET_TYPE_MISMATCH",
+                "Cannot link sockets with different types.",
+                details={"from_socket_type": from_type, "to_socket_type": to_type},
+            )
+        if self._input_has_link(tree, to_node, to_socket):
+            raise BlendexError(
+                "LINK_NOT_ALLOWED",
+                "Destination input socket already has a link.",
+                details={"to_node": self._node_id(to_node), "to_socket": self._socket_name(to_socket)},
+            )
+        return from_node, from_socket, to_node, to_socket, from_type
 
     def _label_node(self, request: OperationRequest) -> Dict[str, Any]:
         obj = self._object(request.target["object_id"])
