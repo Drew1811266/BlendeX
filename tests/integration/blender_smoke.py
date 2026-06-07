@@ -16,7 +16,12 @@ from blendex_protocol.messages import OperationRequest
 class SmokeContext:
     def __init__(self, obj):
         self.objects = {obj.name: obj}
-        self.node_types = {"GeometryNodeJoinGeometry"}
+        self.node_types = {
+            "GeometryNodeJoinGeometry": {
+                "inputs": [{"name": "Geometry", "socket_type": "NodeSocketGeometry"}],
+                "outputs": [{"name": "Geometry", "socket_type": "NodeSocketGeometry"}],
+            }
+        }
 
 
 def main():
@@ -24,17 +29,53 @@ def main():
     try:
         bpy.ops.mesh.primitive_cube_add(size=2)
         obj = bpy.context.object
-        modifier = obj.modifiers.new("BlendeX Geometry", "NODES")
-        modifier["blendex_owned"] = True
 
-        request = OperationRequest(
-            id="smoke_1",
-            type="geometry_nodes.create_node",
-            target={"object_id": obj.name, "modifier_id": "BlendeX Geometry"},
-            params={"node_type": "GeometryNodeJoinGeometry", "label": "Join Geometry"},
+        executor = GeometryNodesExecutor(SmokeContext(obj))
+        modifier = executor.execute(
+            OperationRequest(
+                id="smoke_modifier",
+                type="geometry_nodes.create_modifier",
+                target={"object_id": obj.name},
+                params={"modifier_id": "BlendeX Geometry"},
+            )
         )
-        result = GeometryNodesExecutor(SmokeContext(obj)).execute(request)
-        assert result["node_type"] == "GeometryNodeJoinGeometry"
+        assert modifier["blendex_owned"] is True
+
+        node_a = executor.execute(
+            OperationRequest(
+                id="smoke_node_a",
+                type="geometry_nodes.create_node",
+                target={"object_id": obj.name, "modifier_id": "BlendeX Geometry"},
+                params={"node_type": "GeometryNodeJoinGeometry", "label": "Join A"},
+            )
+        )
+        node_b = executor.execute(
+            OperationRequest(
+                id="smoke_node_b",
+                type="geometry_nodes.create_node",
+                target={"object_id": obj.name, "modifier_id": "BlendeX Geometry"},
+                params={"node_type": "GeometryNodeJoinGeometry", "label": "Join B"},
+            )
+        )
+        assert node_a["node_type"] == "GeometryNodeJoinGeometry"
+        assert node_b["node_type"] == "GeometryNodeJoinGeometry"
+
+        tree = executor.execute(
+            OperationRequest(
+                id="smoke_tree",
+                type="geometry_nodes.inspect_tree",
+                target={"object_id": obj.name, "modifier_id": "BlendeX Geometry"},
+                params={},
+            )
+        )
+        created_nodes = {
+            node.get("label"): node
+            for node in tree["nodes"]
+            if node.get("label") in {"Join A", "Join B"}
+        }
+        assert set(created_nodes) == {"Join A", "Join B"}
+        assert created_nodes["Join A"]["node_type"] == "GeometryNodeJoinGeometry"
+        assert created_nodes["Join B"]["node_type"] == "GeometryNodeJoinGeometry"
     finally:
         blendex.unregister()
 

@@ -19,13 +19,14 @@ BlendeX 想解决的问题是：
 
 ## 当前状态
 
-当前仓库实现的是 MVP 基础骨架，已经具备一条最小可运行的 vertical slice：
+当前仓库实现的是 v0.2 graph kernel 基础能力，已经具备一条可运行的 Geometry Nodes 操作链：
 
 - CodeX-side MCP 工具可以生成结构化 BlendeX 请求。
 - Blender add-on 可以启动本地 WebSocket 服务。
 - 本地协议层可以解析请求、返回结果和结构化错误。
-- Blender 端可以扫描 Geometry Nodes 能力、检查场景、创建安全允许的节点。
-- `geometry_nodes.create_node` 只允许写入 BlendeX 标记拥有的 Geometry Nodes modifier。
+- Blender 端可以扫描 Geometry Nodes 能力、检查场景、创建承载 mesh、创建 Geometry Nodes modifier、创建节点、设置 socket value、连接 socket、设置 label，并返回 node tree 结构。
+- Geometry Nodes mutation 只允许写入 BlendeX 标记拥有的 modifier 和 node group。
+- 批处理 validate / dry-run 可以在执行前预览对象、modifier、节点、socket value 和 link 变化。
 - 项目包含单元测试和 Blender background smoke test。
 
 这还不是完整产品，但已经建立了后续扩展自然语言创作能力所需的插件、协议、安全和测试基础。
@@ -69,22 +70,45 @@ Blender scene and Geometry Nodes node trees
 
 ## 当前 MCP 工具
 
-MVP 当前提供三个 CodeX-side 工具：
+v0.2 目标工具面包括：
 
 - `blendex_scan_capabilities`
   - 扫描连接中的 Blender runtime。
-  - 返回 Blender 版本、Geometry Nodes 节点类型和当前真实支持的 BlendeX 操作。
+  - 返回 Blender 版本、Geometry Nodes 节点类型、socket metadata、语义 catalog 匹配和真实支持的 BlendeX 操作。
 
 - `blendex_inspect_scene`
-  - 检查当前 Blender 场景和选中对象信息。
+  - 检查当前 Blender 场景、选中对象、modifier、Geometry Nodes node group 和 BlendeX ownership。
+
+- `blendex_create_carrier_mesh`
+  - 创建一个用于承载程序化 Geometry Nodes 图的基础 mesh object。
+
+- `blendex_create_modifier`
+  - 在目标对象上创建 BlendeX-owned Geometry Nodes modifier。
+
+- `blendex_inspect_tree`
+  - 检查目标 Geometry Nodes tree 的 nodes、sockets、links、labels 和 ownership metadata。
 
 - `blendex_create_node`
-  - 在指定对象的 BlendeX-owned Geometry Nodes modifier 中创建节点。
-  - 当前要求传入 `object_id` 和 `node_type`，可选 `modifier_id` 和 `label`。
+  - 在 BlendeX-owned Geometry Nodes modifier 中创建节点。
+
+- `blendex_set_socket_value`
+  - 设置节点 input socket 默认值，并在写入前做 socket 与 value 类型校验。
+
+- `blendex_link_sockets`
+  - 连接 output socket 到 input socket，并在写入前做方向和基础类型校验。
+
+- `blendex_label_node`
+  - 设置节点 label，帮助 CodeX 创建可读图结构。
+
+- `blendex_validate_batch`
+  - 验证一组结构化操作，不修改 Blender 场景。
+
+- `blendex_dry_run`
+  - 返回一组结构化操作的预览，包括将创建的节点、链接和 socket value 变化。
 
 ## 安全边界
 
-BlendeX MVP 明确避免直接执行 AI 生成的任意 Python。
+BlendeX v0.2 明确避免直接执行 AI 生成的任意 Python，也就是避免把自然语言直接变成 arbitrary Python 代码运行。
 
 当前安全设计包括：
 
@@ -92,7 +116,8 @@ BlendeX MVP 明确避免直接执行 AI 生成的任意 Python。
 - Blender 端只执行结构化操作，而不是执行自由形式代码字符串。
 - WebSocket 服务绑定在 `127.0.0.1`。
 - 服务请求在 Blender 环境中通过 main-thread dispatch 执行，避免 socket worker 线程直接触碰 Blender API。
-- `create_node` 需要目标 Geometry Nodes modifier 已标记 `blendex_owned`。
+- mutation 操作需要目标 Geometry Nodes modifier 和 node group 已标记 `blendex_owned`。
+- `blendex_validate_batch` 和 `blendex_dry_run` 使用只读校验路径，不创建节点、不连接 socket、不写 socket value。
 - MCP server 会把 Blender 端 `ok: false` 的语义错误标记为 tool error。
 - capability scanner 只宣告当前实际实现的操作，避免 CodeX 规划不存在的能力。
 
@@ -122,6 +147,12 @@ BLENDER=/path/to/blender python3 scripts/run_blender_smoke.py
 SKIP: set BLENDER=/path/to/blender to run the Blender smoke test
 ```
 
+v0.2 smoke test 会覆盖：
+
+- 创建 BlendeX-owned Geometry Nodes modifier。
+- 创建至少两个 Geometry Nodes 节点。
+- inspect tree 返回创建后的节点结构。
+
 ### Source tree 方式加载 Blender add-on
 
 开发阶段可以让 Blender 指向仓库中的 `blender_addon` 目录。add-on 在 source tree 中运行时会自动把同级 `src` 目录加入 Python path，从而让 Blender 端可以导入共享协议包 `blendex_protocol`。
@@ -138,6 +169,8 @@ SKIP: set BLENDER=/path/to/blender to run the Blender smoke test
 │       ├── capabilities.py
 │       ├── executor.py
 │       ├── logs.py
+│       ├── safety.py
+│       ├── scene.py
 │       ├── server.py
 │       ├── state.py
 │       └── ui.py
@@ -163,16 +196,9 @@ SKIP: set BLENDER=/path/to/blender to run the Blender smoke test
 
 接下来可以继续扩展这些方向：
 
-- Geometry Nodes graph 操作
-  - 创建 Geometry Nodes modifier。
-  - 连接 socket。
-  - 设置 socket 默认值。
-  - 标记节点 ownership。
-  - 检查和返回更完整的 node tree 结构。
-
 - 自然语言规划层
   - 让 CodeX 根据用户描述选择节点、构造图结构、分批执行。
-  - 引入 dry-run 和 operation preview。
+  - 使用 dry-run 和 operation preview 先发现明显失败，再执行真实 mutation。
   - 在失败时给出可恢复的 retry hint。
 
 - Blender 端能力扫描
