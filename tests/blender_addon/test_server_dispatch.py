@@ -183,6 +183,26 @@ class DispatchTests(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "VALIDATION_FAILED")
 
+    def test_default_executor_uses_current_scene_objects(self):
+        previous_bpy = sys.modules.get("bpy")
+        scene_objects = {"Current Cube": object()}
+        global_objects = {"Other Scene Cube": object()}
+        fake_bpy = types.SimpleNamespace(
+            app=types.SimpleNamespace(version=(4, 2, 0)),
+            context=types.SimpleNamespace(scene=types.SimpleNamespace(objects=scene_objects)),
+            data=types.SimpleNamespace(objects=global_objects),
+        )
+        sys.modules["bpy"] = fake_bpy
+        try:
+            executor = server._default_executor()
+        finally:
+            if previous_bpy is None:
+                sys.modules.pop("bpy", None)
+            else:
+                sys.modules["bpy"] = previous_bpy
+
+        self.assertIs(executor.context.objects, scene_objects)
+
 
 class MainThreadDispatchTests(unittest.TestCase):
     def setUp(self):

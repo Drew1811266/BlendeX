@@ -91,6 +91,32 @@ class ValidationTests(unittest.TestCase):
 
                 self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
+    def test_rejects_create_node_invalid_location(self):
+        request = OperationRequest(
+            id="req_bad_location",
+            type="geometry_nodes.create_node",
+            target={"object_id": "Cube"},
+            params={"node_type": "GeometryNodeJoinGeometry", "location": "not-a-location"},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
+    def test_rejects_create_node_non_string_label(self):
+        request = OperationRequest(
+            id="req_bad_label",
+            type="geometry_nodes.create_node",
+            target={"object_id": "Cube"},
+            params={"node_type": "GeometryNodeJoinGeometry", "label": 123},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
     def test_accepts_create_modifier_request(self):
         request = OperationRequest(
             id="req_modifier",
@@ -100,6 +126,19 @@ class ValidationTests(unittest.TestCase):
         )
 
         validate_request(request)
+
+    def test_rejects_create_modifier_empty_modifier_id(self):
+        request = OperationRequest(
+            id="req_bad_modifier",
+            type="geometry_nodes.create_modifier",
+            target={"object_id": "Cube"},
+            params={"modifier_id": ""},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
     def test_rejects_create_carrier_mesh_non_string_name(self):
         request = OperationRequest(

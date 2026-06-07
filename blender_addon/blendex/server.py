@@ -277,9 +277,12 @@ def _default_executor() -> Any:
     from .executor import GeometryNodesExecutor
 
     capabilities = scan_bpy_capabilities()
+    context = getattr(bpy, "context", None)
+    scene_objects = getattr(getattr(context, "scene", None), "objects", None)
+    view_layer_objects = getattr(getattr(context, "view_layer", None), "objects", None)
 
     class BpyExecutionContext:
-        objects = bpy.data.objects
+        objects = scene_objects or view_layer_objects or bpy.data.objects
         node_types = set(capabilities["node_types"].keys())
 
     return GeometryNodesExecutor(BpyExecutionContext())

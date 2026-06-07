@@ -14,8 +14,13 @@ IMPLEMENTED_OPERATIONS = {
     "capabilities.supported_operations",
     "scene.create_carrier_mesh",
     "scene.inspect",
+    "geometry_nodes.create_modifier",
     "geometry_nodes.inspect_tree",
     "geometry_nodes.create_node",
+    "geometry_nodes.link_sockets",
+    "geometry_nodes.set_socket_value",
+    "geometry_nodes.label_node",
+    "geometry_nodes.mark_ownership",
 }
 
 _RUNTIME_NODE_PREFIXES = ("GeometryNode", "FunctionNode", "ShaderNode")

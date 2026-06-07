@@ -49,6 +49,16 @@ def _number_matches(value: Any) -> bool:
     return False
 
 
+def _require_number_pair(mapping, key: str, message: str) -> None:
+    if key not in mapping:
+        return
+    value = mapping.get(key)
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise BlendexError("VALIDATION_FAILED", message)
+    if not all(_number_matches(item) for item in value):
+        raise BlendexError("VALIDATION_FAILED", message)
+
+
 def _json_value_matches(value: Any, depth: int = 0) -> bool:
     if depth > MAX_JSON_VALUE_DEPTH:
         return False
@@ -118,6 +128,12 @@ def validate_request(request: OperationRequest) -> None:
                 "Geometry Nodes operations require target.object_id.",
                 retry_hint="Inspect the scene or create a carrier mesh before editing nodes.",
             )
+    if request.type == "geometry_nodes.create_modifier" and "modifier_id" in request.params:
+        _require_string(
+            request.params,
+            "modifier_id",
+            "create_modifier params.modifier_id must be a non-empty string.",
+        )
     if request.type == "geometry_nodes.create_node":
         node_type = request.params.get("node_type")
         if not isinstance(node_type, str) or not node_type:
@@ -125,6 +141,17 @@ def validate_request(request: OperationRequest) -> None:
                 "VALIDATION_FAILED",
                 "create_node requires params.node_type.",
                 retry_hint="Use a node type returned by capabilities.scan.",
+            )
+        _require_number_pair(
+            request.params,
+            "location",
+                "create_node params.location must be an array of two finite numbers.",
+        )
+        if "label" in request.params:
+            _require_string(
+                request.params,
+                "label",
+                "create_node params.label must be a non-empty string.",
             )
     if request.type == "scene.create_carrier_mesh" and "name" in request.params:
         _require_string(

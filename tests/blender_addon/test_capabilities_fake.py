@@ -36,19 +36,29 @@ class CapabilityTests(unittest.TestCase):
             [
                 "capabilities.scan",
                 "capabilities.supported_operations",
+                "geometry_nodes.create_modifier",
                 "geometry_nodes.create_node",
                 "geometry_nodes.inspect_tree",
+                "geometry_nodes.label_node",
+                "geometry_nodes.link_sockets",
+                "geometry_nodes.mark_ownership",
+                "geometry_nodes.set_socket_value",
                 "scene.create_carrier_mesh",
                 "scene.inspect",
             ],
         )
 
-    def test_scan_does_not_advertise_unimplemented_future_operations(self):
+    def test_scan_advertises_task5_graph_operations_but_not_future_safety_operations(self):
         result = scan_capabilities(FakeBlender())
 
-        self.assertNotIn("geometry_nodes.link_sockets", result["supported_operations"])
-        self.assertNotIn("geometry_nodes.set_socket_value", result["supported_operations"])
+        self.assertIn("geometry_nodes.create_modifier", result["supported_operations"])
+        self.assertIn("geometry_nodes.link_sockets", result["supported_operations"])
+        self.assertIn("geometry_nodes.set_socket_value", result["supported_operations"])
+        self.assertIn("geometry_nodes.label_node", result["supported_operations"])
+        self.assertIn("geometry_nodes.mark_ownership", result["supported_operations"])
+        self.assertNotIn("safety.validate_batch", result["supported_operations"])
         self.assertNotIn("safety.dry_run", result["supported_operations"])
+        self.assertNotIn("safety.undo_last_batch", result["supported_operations"])
 
     def test_scan_bpy_capabilities_filters_geometry_node_subclasses(self):
         class GeometryNodeJoinGeometry:
