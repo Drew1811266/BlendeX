@@ -57,9 +57,17 @@ class BLENDEX_OT_undo_last_batch(_OperatorBase):
     bl_label = "Undo Last BlendeX Batch"
 
     def execute(self, context):
+        from blendex_protocol.errors import BlendexError
+
         from .batches import undo_last_batch
 
-        undo_last_batch()
+        try:
+            undo_last_batch()
+        except BlendexError as error:
+            report = getattr(self, "report", None)
+            if callable(report):
+                report({"ERROR"}, f"{error.code}: {error.message}")
+            return {"CANCELLED"}
         return {"FINISHED"}
 
 
