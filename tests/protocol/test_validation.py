@@ -256,12 +256,14 @@ class ValidationTests(unittest.TestCase):
 
         validate_request(request)
 
-    def test_accepts_execute_batch_request_with_summary(self):
+    def test_accepts_confirmed_execute_batch_request(self):
         request = OperationRequest(
             id="req_batch",
             type="safety.execute_batch",
             target={"object_id": "Cube"},
             params={
+                "confirmed": True,
+                "confirmation_id": "confirm_1",
                 "summary": "Create a small node graph",
                 "operations": [
                     {
@@ -276,28 +278,77 @@ class ValidationTests(unittest.TestCase):
 
         validate_request(request)
 
-    def test_rejects_execute_batch_empty_summary(self):
-        request = OperationRequest(
-            id="req_batch",
-            type="safety.execute_batch",
-            target={},
-            params={
-                "summary": "",
-                "operations": [
-                    {
-                        "id": "op_1",
-                        "type": "scene.inspect",
-                        "target": {},
-                        "params": {},
-                    }
-                ],
-            },
-        )
+    def test_rejects_execute_batch_without_confirmed_true(self):
+        base_params = {
+            "confirmation_id": "confirm_1",
+            "summary": "Inspect scene",
+            "operations": [{"id": "op_1", "type": "scene.inspect", "target": {}, "params": {}}],
+        }
 
-        with self.assertRaises(BlendexError) as raised:
-            validate_request(request)
+        for params in (
+            base_params,
+            {**base_params, "confirmed": False},
+        ):
+            with self.subTest(params=params):
+                request = OperationRequest(
+                    id="req_batch",
+                    type="safety.execute_batch",
+                    target={},
+                    params=params,
+                )
 
-        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+                with self.assertRaises(BlendexError) as raised:
+                    validate_request(request)
+
+                self.assertEqual(raised.exception.code, "CONFIRMATION_REQUIRED")
+
+    def test_rejects_execute_batch_missing_or_empty_confirmation_id(self):
+        base_params = {
+            "confirmed": True,
+            "summary": "Inspect scene",
+            "operations": [{"id": "op_1", "type": "scene.inspect", "target": {}, "params": {}}],
+        }
+
+        for params in (
+            base_params,
+            {**base_params, "confirmation_id": ""},
+        ):
+            with self.subTest(params=params):
+                request = OperationRequest(
+                    id="req_batch",
+                    type="safety.execute_batch",
+                    target={},
+                    params=params,
+                )
+
+                with self.assertRaises(BlendexError) as raised:
+                    validate_request(request)
+
+                self.assertEqual(raised.exception.code, "CONFIRMATION_REQUIRED")
+
+    def test_rejects_execute_batch_missing_or_empty_summary(self):
+        base_params = {
+            "confirmed": True,
+            "confirmation_id": "confirm_1",
+            "operations": [{"id": "op_1", "type": "scene.inspect", "target": {}, "params": {}}],
+        }
+
+        for params in (
+            base_params,
+            {**base_params, "summary": ""},
+        ):
+            with self.subTest(params=params):
+                request = OperationRequest(
+                    id="req_batch",
+                    type="safety.execute_batch",
+                    target={},
+                    params=params,
+                )
+
+                with self.assertRaises(BlendexError) as raised:
+                    validate_request(request)
+
+                self.assertEqual(raised.exception.code, "CONFIRMATION_REQUIRED")
 
     def test_rejects_inspect_batch_without_batch_id(self):
         request = OperationRequest(
@@ -348,8 +399,8 @@ class ValidationTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
-    def test_rejects_batch_requests_with_empty_operations_array(self):
-        for operation_type in ("safety.validate_batch", "safety.dry_run", "safety.execute_batch"):
+    def test_rejects_batch_validation_or_dry_run_with_empty_operations_array(self):
+        for operation_type in ("safety.validate_batch", "safety.dry_run"):
             with self.subTest(operation_type=operation_type):
                 request = OperationRequest(
                     id="req_batch_empty",
@@ -362,6 +413,24 @@ class ValidationTests(unittest.TestCase):
                     validate_request(request)
 
                 self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
+    def test_rejects_confirmed_execute_batch_with_empty_operations_array(self):
+        request = OperationRequest(
+            id="req_batch_empty",
+            type="safety.execute_batch",
+            target={},
+            params={
+                "confirmed": True,
+                "confirmation_id": "confirm_1",
+                "summary": "Inspect scene",
+                "operations": [],
+            },
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
     def test_rejects_batch_operation_nested_invalid_json_values(self):
         invalid_operations = [

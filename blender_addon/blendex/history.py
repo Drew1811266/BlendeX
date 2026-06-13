@@ -28,6 +28,7 @@ class BatchRecord:
     timestamp: float = field(default_factory=time)
     dry_run: bool = False
     actor: str = ""
+    confirmation_id: str = ""
     error: Optional[Dict[str, Any]] = None
     undo_status: str = "not_requested"
     undo_error: Optional[Dict[str, Any]] = None
@@ -40,6 +41,7 @@ class BatchRecord:
             "timestamp": self.timestamp,
             "target": _json_safe(self.target),
             "summary": self.summary,
+            "confirmation_id": self.confirmation_id,
             "dry_run": self.dry_run,
             "actor": self.actor,
             "operations": _json_safe(self.operations),

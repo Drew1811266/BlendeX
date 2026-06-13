@@ -39,6 +39,7 @@ class ToolMappingTests(unittest.TestCase):
             "blendex_label_node",
             "blendex_validate_batch",
             "blendex_dry_run",
+            "blendex_execute_confirmed_batch",
         ]:
             self.assertIn(name, names)
 
@@ -95,6 +96,29 @@ class ToolMappingTests(unittest.TestCase):
 
         self.assertEqual(operation["type"], "safety.validate_batch")
         self.assertEqual(operation["params"]["operations"][0]["type"], "scene.inspect")
+
+    def test_execute_confirmed_batch_maps_confirmation_arguments(self):
+        operations = [{"id": "op_1", "type": "scene.inspect", "target": {}, "params": {}}]
+        preview = {"nodes": []}
+
+        operation = tool_to_operation(
+            "blendex_execute_confirmed_batch",
+            {
+                "operations": operations,
+                "confirmation_id": "confirm_1",
+                "summary": "Inspect scene",
+                "preview": preview,
+            },
+            request_id="req_execute",
+        )
+
+        self.assertEqual(operation["id"], "req_execute")
+        self.assertEqual(operation["type"], "safety.execute_batch")
+        self.assertEqual(operation["params"]["operations"], operations)
+        self.assertTrue(operation["params"]["confirmed"])
+        self.assertEqual(operation["params"]["confirmation_id"], "confirm_1")
+        self.assertEqual(operation["params"]["summary"], "Inspect scene")
+        self.assertEqual(operation["params"]["preview"], preview)
 
     def test_inspect_scene_maps_to_structured_operation(self):
         operation = tool_to_operation("blendex_inspect_scene", {}, request_id="req_x")

@@ -157,6 +157,7 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
     operations = request.params["operations"]
     dry_run = request.params.get("dry_run", False)
     actor = request.params.get("actor", "")
+    confirmation_id = request.params.get("confirmation_id", "")
     results: List[Dict[str, Any]] = []
     client_nodes: Dict[str, str] = {}
     declared_client_ids = _declared_client_ids(operations)
@@ -195,6 +196,7 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
         operation_count=len(operations),
         target=copy.deepcopy(request.target),
         summary=request.params.get("summary", ""),
+        confirmation_id=confirmation_id if isinstance(confirmation_id, str) else "",
         dry_run=dry_run if isinstance(dry_run, bool) else False,
         actor=actor if isinstance(actor, str) else "",
         operations=results,

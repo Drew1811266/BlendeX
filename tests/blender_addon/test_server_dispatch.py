@@ -258,6 +258,8 @@ class DispatchTests(unittest.TestCase):
                 "type": "safety.execute_batch",
                 "target": {"object_id": "Cube"},
                 "params": {
+                    "confirmed": True,
+                    "confirmation_id": "confirm_dispatch",
                     "summary": "Create node",
                     "dry_run": True,
                     "actor": "codex",
@@ -276,6 +278,7 @@ class DispatchTests(unittest.TestCase):
 
         self.assertTrue(execute_response["ok"])
         self.assertNotIn("confirmed", execute_response["result"])
+        self.assertEqual(execute_response["result"]["confirmation_id"], "confirm_dispatch")
         self.assertEqual(execute_response["result"]["dry_run"], True)
         self.assertEqual(execute_response["result"]["actor"], "codex")
         batch_id = execute_response["result"]["batch_id"]
@@ -314,6 +317,9 @@ class DispatchTests(unittest.TestCase):
                 "type": "safety.execute_batch",
                 "target": {"object_id": "Cube"},
                 "params": {
+                    "confirmed": True,
+                    "confirmation_id": "confirm_undo",
+                    "summary": "Create node",
                     "operations": [
                         {
                             "id": "op_node",

@@ -34,6 +34,10 @@ class ServerTests(unittest.TestCase):
 
         self.assertEqual(response["id"], 2)
         self.assertIn("tools", response["result"])
+        self.assertIn(
+            "blendex_execute_confirmed_batch",
+            [tool["name"] for tool in response["result"]["tools"]],
+        )
 
     def test_initialized_notification_returns_no_response(self):
         response = server.handle_message(
@@ -153,6 +157,31 @@ class ServerTests(unittest.TestCase):
                 "arguments": {"object_id": "Cube", "node_id": "Value", "socket": "Value"},
             },
             {"name": "blendex_validate_batch", "arguments": {"operations": "not a list"}},
+            {
+                "name": "blendex_execute_confirmed_batch",
+                "arguments": {
+                    "operations": [],
+                    "confirmation_id": 3,
+                    "summary": "Execute",
+                },
+            },
+            {
+                "name": "blendex_execute_confirmed_batch",
+                "arguments": {
+                    "operations": [],
+                    "confirmation_id": "confirm_1",
+                    "summary": 3,
+                },
+            },
+            {
+                "name": "blendex_execute_confirmed_batch",
+                "arguments": {
+                    "operations": [],
+                    "confirmation_id": "confirm_1",
+                    "summary": "Execute",
+                    "unexpected": "value",
+                },
+            },
         ]
 
         for params in invalid_calls:
@@ -161,6 +190,58 @@ class ServerTests(unittest.TestCase):
                     {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": params},
                     FakeClient(),
                 )
+                self.assertEqual(response["error"]["code"], -32602)
+
+    def test_execute_confirmed_batch_call_sends_confirmed_operation(self):
+        client = FakeClient()
+        operations = [{"id": "op_1", "type": "scene.inspect", "target": {}, "params": {}}]
+
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "tools/call",
+                "params": {
+                    "name": "blendex_execute_confirmed_batch",
+                    "arguments": {
+                        "operations": operations,
+                        "confirmation_id": "confirm_1",
+                        "summary": "Inspect scene",
+                    },
+                },
+            },
+            client,
+        )
+
+        self.assertNotIn("error", response)
+        operation = client.operations[0]
+        self.assertEqual(operation["type"], "safety.execute_batch")
+        self.assertEqual(operation["params"]["operations"], operations)
+        self.assertTrue(operation["params"]["confirmed"])
+        self.assertEqual(operation["params"]["confirmation_id"], "confirm_1")
+        self.assertEqual(operation["params"]["summary"], "Inspect scene")
+        self.assertEqual(operation["params"]["preview"], {})
+
+    def test_execute_confirmed_batch_requires_confirmation_arguments(self):
+        for arguments in (
+            {"operations": []},
+            {"operations": [], "confirmation_id": "confirm_1"},
+            {"operations": [], "summary": "Execute"},
+        ):
+            with self.subTest(arguments=arguments):
+                response = server.handle_message(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 21,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "blendex_execute_confirmed_batch",
+                            "arguments": arguments,
+                        },
+                    },
+                    FakeClient(),
+                )
+
                 self.assertEqual(response["error"]["code"], -32602)
 
     def test_tools_call_rejects_non_finite_json_numbers(self):

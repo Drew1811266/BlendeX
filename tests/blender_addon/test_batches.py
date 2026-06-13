@@ -50,6 +50,16 @@ class RuntimeFailingExecutor(RecordingExecutor):
         return super().execute(request)
 
 
+def _confirmed_params(operations, summary="Confirmed test batch", confirmation_id="confirm_test", **extra):
+    return {
+        "confirmed": True,
+        "confirmation_id": confirmation_id,
+        "summary": summary,
+        "operations": operations,
+        **extra,
+    }
+
+
 class BatchExecutionTests(unittest.TestCase):
     def setUp(self):
         STATE.batch_history.records.clear()
@@ -60,9 +70,8 @@ class BatchExecutionTests(unittest.TestCase):
         result = execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "summary": "Create and link nodes",
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "make_noise",
                             "type": "geometry_nodes.create_node",
@@ -81,12 +90,15 @@ class BatchExecutionTests(unittest.TestCase):
                             },
                         },
                     ],
-                },
+                    summary="Create and link nodes",
+                    confirmation_id="confirm_create_link",
+                ),
             },
             executor,
         )
 
         self.assertNotIn("confirmed", result)
+        self.assertEqual(result["confirmation_id"], "confirm_create_link")
         self.assertTrue(result["batch_id"].startswith("batch_"))
         self.assertEqual(result["status"], "succeeded")
         self.assertEqual([entry["id"] for entry in result["operations"]], ["make_noise", "link_noise"])
@@ -99,11 +111,8 @@ class BatchExecutionTests(unittest.TestCase):
         result = execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "summary": "Audit metadata",
-                    "dry_run": True,
-                    "actor": "codex",
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "make_noise",
                             "type": "geometry_nodes.create_node",
@@ -111,7 +120,11 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
                         }
                     ],
-                },
+                    summary="Audit metadata",
+                    confirmation_id="confirm_metadata",
+                    dry_run=True,
+                    actor="codex",
+                ),
             },
             executor,
         )
@@ -129,7 +142,7 @@ class BatchExecutionTests(unittest.TestCase):
             id="req_empty_batch",
             type="safety.execute_batch",
             target={"object_id": "Cube"},
-            params={"operations": []},
+            params=_confirmed_params([], summary="Empty batch", confirmation_id="confirm_empty"),
         )
 
         with self.assertRaises(BlendexError) as raised:
@@ -139,13 +152,63 @@ class BatchExecutionTests(unittest.TestCase):
         self.assertEqual(executor.requests, [])
         self.assertIsNone(STATE.batch_history.latest())
 
+    def test_execute_batch_requires_confirmation_before_mutation_or_history(self):
+        executor = RecordingExecutor()
+
+        with self.assertRaises(BlendexError) as raised:
+            execute_batch(
+                {
+                    "target": {"object_id": "Cube"},
+                    "params": {
+                        "summary": "Unconfirmed node",
+                        "operations": [
+                            {
+                                "id": "make_noise",
+                                "type": "geometry_nodes.create_node",
+                                "target": {"object_id": "Cube"},
+                                "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
+                            }
+                        ],
+                    },
+                },
+                executor,
+            )
+
+        self.assertEqual(raised.exception.code, "CONFIRMATION_REQUIRED")
+        self.assertEqual(executor.requests, [])
+        self.assertIsNone(STATE.batch_history.latest())
+
+    def test_execute_batch_preserves_confirmation_id(self):
+        result = execute_batch(
+            {
+                "target": {"object_id": "Cube"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "make_noise",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
+                        }
+                    ],
+                    summary="Create node",
+                    confirmation_id="confirm_preserved",
+                ),
+            },
+            RecordingExecutor(),
+        )
+
+        self.assertEqual(result["confirmation_id"], "confirm_preserved")
+        self.assertEqual(STATE.batch_history.latest().confirmation_id, "confirm_preserved")
+        self.assertEqual(STATE.batch_history.latest().to_dict()["confirmation_id"], "confirm_preserved")
+
     def test_execute_batch_continues_after_failure_and_records_partial_status(self):
         executor = RecordingExecutor(fail_on={"bad_node"})
         result = execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "good_node",
                             "type": "geometry_nodes.create_node",
@@ -159,7 +222,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_type": "GeometryNodeMissing", "client_id": "missing"},
                         },
                     ],
-                },
+                ),
             },
             executor,
         )
@@ -179,8 +242,8 @@ class BatchExecutionTests(unittest.TestCase):
         result = execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "make_join",
                             "type": "geometry_nodes.create_node",
@@ -194,7 +257,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_id": "join", "label": "Should Not Mutate"},
                         },
                     ],
-                },
+                ),
             },
             executor,
         )
@@ -215,8 +278,8 @@ class BatchExecutionTests(unittest.TestCase):
         result = execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "good_node",
                             "type": "geometry_nodes.create_node",
@@ -230,7 +293,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_id": "noise", "label": "Nope"},
                         },
                     ],
-                },
+                ),
             },
             executor,
         )
@@ -251,8 +314,8 @@ class BatchExecutionTests(unittest.TestCase):
             execute_batch(
                 {
                     "target": {"object_id": "Cube"},
-                    "params": {
-                        "operations": [
+                    "params": _confirmed_params(
+                        [
                             {
                                 "id": "first",
                                 "type": "geometry_nodes.create_node",
@@ -266,7 +329,7 @@ class BatchExecutionTests(unittest.TestCase):
                                 "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
                             },
                         ],
-                    },
+                    ),
                 },
                 executor,
             )
@@ -278,8 +341,8 @@ class BatchExecutionTests(unittest.TestCase):
         result = execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "good_node",
                             "type": "geometry_nodes.create_node",
@@ -287,7 +350,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
                         }
                     ],
-                },
+                ),
             },
             RecordingExecutor(),
         )
@@ -310,8 +373,8 @@ class BatchExecutionTests(unittest.TestCase):
         execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "bad_node",
                             "type": "geometry_nodes.create_node",
@@ -319,7 +382,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_type": "GeometryNodeMissing", "client_id": "missing"},
                         }
                     ],
-                },
+                ),
             },
             RecordingExecutor(fail_on={"bad_node"}),
         )
@@ -337,8 +400,8 @@ class BatchExecutionTests(unittest.TestCase):
         execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "good_node",
                             "type": "geometry_nodes.create_node",
@@ -346,7 +409,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
                         }
                     ],
-                },
+                ),
             },
             RecordingExecutor(),
         )
@@ -360,8 +423,8 @@ class BatchExecutionTests(unittest.TestCase):
         result = execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "good_node",
                             "type": "geometry_nodes.create_node",
@@ -369,7 +432,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
                         }
                     ],
-                },
+                ),
             },
             RecordingExecutor(),
         )
@@ -385,8 +448,8 @@ class BatchExecutionTests(unittest.TestCase):
         execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "good_node",
                             "type": "geometry_nodes.create_node",
@@ -394,7 +457,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
                         }
                     ],
-                },
+                ),
             },
             RecordingExecutor(),
         )
@@ -416,8 +479,8 @@ class BatchExecutionTests(unittest.TestCase):
         execute_batch(
             {
                 "target": {"object_id": "Cube"},
-                "params": {
-                    "operations": [
+                "params": _confirmed_params(
+                    [
                         {
                             "id": "good_node",
                             "type": "geometry_nodes.create_node",
@@ -425,7 +488,7 @@ class BatchExecutionTests(unittest.TestCase):
                             "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
                         }
                     ],
-                },
+                ),
             },
             RecordingExecutor(),
         )

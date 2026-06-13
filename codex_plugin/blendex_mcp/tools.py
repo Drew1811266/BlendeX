@@ -154,6 +154,21 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "blendex_execute_confirmed_batch",
+        "description": "Execute a previously dry-run BlendeX batch after user confirmation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operations": OPERATION_ARRAY_PROP,
+                "confirmation_id": STRING_PROP,
+                "summary": STRING_PROP,
+                "preview": {"type": "object"},
+            },
+            "required": ["operations", "confirmation_id", "summary"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -257,5 +272,18 @@ def tool_to_operation(name: str, arguments: Dict[str, Any], request_id: str) -> 
             "type": "safety.dry_run",
             "target": {},
             "params": {"operations": arguments["operations"]},
+        }
+    if name == "blendex_execute_confirmed_batch":
+        return {
+            "id": request_id,
+            "type": "safety.execute_batch",
+            "target": {},
+            "params": {
+                "operations": arguments["operations"],
+                "confirmed": True,
+                "confirmation_id": arguments["confirmation_id"],
+                "summary": arguments["summary"],
+                "preview": arguments.get("preview", {}),
+            },
         }
     raise ValueError(f"Unknown BlendeX tool: {name}")

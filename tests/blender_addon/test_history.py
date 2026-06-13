@@ -59,11 +59,13 @@ class BatchHistoryTests(unittest.TestCase):
             timestamp=42.5,
             dry_run=True,
             actor="codex",
+            confirmation_id="confirm_json",
         )
 
         payload = record.to_dict()
 
         self.assertEqual(payload["batch_id"], "batch_json")
+        self.assertEqual(payload["confirmation_id"], "confirm_json")
         self.assertEqual(payload["dry_run"], True)
         self.assertEqual(payload["actor"], "codex")
         self.assertEqual(payload["undo_status"], "not_requested")

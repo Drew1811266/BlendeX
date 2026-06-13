@@ -118,12 +118,10 @@ def _require_operations(params) -> None:
         )
 
 
-def _require_optional_summary(params) -> None:
-    if "summary" not in params:
-        return
-    summary = params.get("summary")
-    if not isinstance(summary, str) or not summary:
-        raise BlendexError("VALIDATION_FAILED", "Batch summary must be a non-empty string.")
+def _require_confirmation_string(params, key: str, message: str) -> None:
+    value = params.get(key)
+    if not isinstance(value, str) or not value:
+        raise BlendexError("CONFIRMATION_REQUIRED", message)
 
 
 def _require_no_params(params, message: str) -> None:
@@ -195,10 +193,25 @@ def validate_request(request: OperationRequest) -> None:
         _require_string(request.params, "label", "label_node requires params.label.")
     if request.type == "geometry_nodes.mark_ownership":
         _require_string(request.target, "object_id", "mark_ownership requires target.object_id.")
-    if request.type in {"safety.validate_batch", "safety.dry_run", "safety.execute_batch"}:
-        _require_operations(request.params)
     if request.type == "safety.execute_batch":
-        _require_optional_summary(request.params)
+        if request.params.get("confirmed") is not True:
+            raise BlendexError(
+                "CONFIRMATION_REQUIRED",
+                "execute_batch requires params.confirmed=true.",
+            )
+        _require_confirmation_string(
+            request.params,
+            "confirmation_id",
+            "execute_batch requires params.confirmation_id.",
+        )
+        _require_confirmation_string(
+            request.params,
+            "summary",
+            "execute_batch requires params.summary.",
+        )
+        _require_operations(request.params)
+    if request.type in {"safety.validate_batch", "safety.dry_run"}:
+        _require_operations(request.params)
     if request.type == "safety.inspect_batch":
         _require_string(request.params, "batch_id", "inspect_batch requires params.batch_id.")
     if request.type == "safety.undo_last_batch":
