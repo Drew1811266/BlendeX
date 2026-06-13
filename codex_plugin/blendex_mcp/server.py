@@ -191,7 +191,7 @@ def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[D
             {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "blendex", "version": "0.1.0"},
+                "serverInfo": {"name": "blendex", "version": "0.2.0"},
             },
         )
     if method == "tools/list":
