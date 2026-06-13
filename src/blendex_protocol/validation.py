@@ -88,6 +88,8 @@ def _require_operations(params) -> None:
     operations = params.get("operations")
     if not isinstance(operations, list):
         raise BlendexError("VALIDATION_FAILED", "Batch operations must be an array.")
+    if not operations:
+        raise BlendexError("VALIDATION_FAILED", "Batch operations must contain at least one operation.")
     for index, operation in enumerate(operations):
         if not isinstance(operation, dict):
             raise BlendexError(

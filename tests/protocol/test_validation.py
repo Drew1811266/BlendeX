@@ -281,7 +281,17 @@ class ValidationTests(unittest.TestCase):
             id="req_batch",
             type="safety.execute_batch",
             target={},
-            params={"summary": "", "operations": []},
+            params={
+                "summary": "",
+                "operations": [
+                    {
+                        "id": "op_1",
+                        "type": "scene.inspect",
+                        "target": {},
+                        "params": {},
+                    }
+                ],
+            },
         )
 
         with self.assertRaises(BlendexError) as raised:
@@ -314,6 +324,21 @@ class ValidationTests(unittest.TestCase):
             validate_request(request)
 
         self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
+    def test_rejects_batch_requests_with_empty_operations_array(self):
+        for operation_type in ("safety.validate_batch", "safety.dry_run", "safety.execute_batch"):
+            with self.subTest(operation_type=operation_type):
+                request = OperationRequest(
+                    id="req_batch_empty",
+                    type=operation_type,
+                    target={},
+                    params={"operations": []},
+                )
+
+                with self.assertRaises(BlendexError) as raised:
+                    validate_request(request)
+
+                self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
     def test_rejects_batch_operation_nested_invalid_json_values(self):
         invalid_operations = [

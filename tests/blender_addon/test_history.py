@@ -57,11 +57,15 @@ class BatchHistoryTests(unittest.TestCase):
             operations=[{"id": "op_1", "ok": True, "result": {"node_id": "Node.001"}}],
             preview={"nodes": [{"client_id": "noise", "node_id": "Node.001"}]},
             timestamp=42.5,
+            dry_run=True,
+            actor="codex",
         )
 
         payload = record.to_dict()
 
         self.assertEqual(payload["batch_id"], "batch_json")
+        self.assertEqual(payload["dry_run"], True)
+        self.assertEqual(payload["actor"], "codex")
         self.assertEqual(payload["undo_status"], "not_requested")
         self.assertIsNone(payload["error"])
         json.dumps(payload)

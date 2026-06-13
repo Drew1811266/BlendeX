@@ -258,6 +258,8 @@ class DispatchTests(unittest.TestCase):
                 "target": {"object_id": "Cube"},
                 "params": {
                     "summary": "Create node",
+                    "dry_run": True,
+                    "actor": "codex",
                     "operations": [
                         {
                             "id": "op_node",
@@ -272,6 +274,9 @@ class DispatchTests(unittest.TestCase):
         )
 
         self.assertTrue(execute_response["ok"])
+        self.assertNotIn("confirmed", execute_response["result"])
+        self.assertEqual(execute_response["result"]["dry_run"], True)
+        self.assertEqual(execute_response["result"]["actor"], "codex")
         batch_id = execute_response["result"]["batch_id"]
 
         history_response = dispatch_payload(
@@ -290,8 +295,12 @@ class DispatchTests(unittest.TestCase):
 
         self.assertTrue(history_response["ok"])
         self.assertEqual(history_response["result"]["batches"][0]["batch_id"], batch_id)
+        self.assertEqual(history_response["result"]["batches"][0]["dry_run"], True)
+        self.assertEqual(history_response["result"]["batches"][0]["actor"], "codex")
         self.assertTrue(inspect_response["ok"])
         self.assertEqual(inspect_response["result"]["batch_id"], batch_id)
+        self.assertEqual(inspect_response["result"]["dry_run"], True)
+        self.assertEqual(inspect_response["result"]["actor"], "codex")
 
     def test_dispatch_returns_batch_not_found_for_unknown_batch(self):
         response = dispatch_payload(

@@ -141,10 +141,12 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
                 "params": batch.get("params", {}),
             }
         )
-        validate_request(request)
+    validate_request(request)
 
     batch_id = _batch_id()
     operations = request.params["operations"]
+    dry_run = request.params.get("dry_run", False)
+    actor = request.params.get("actor", "")
     results: List[Dict[str, Any]] = []
     client_nodes: Dict[str, str] = {}
     declared_client_ids = _declared_client_ids(operations)
@@ -181,11 +183,11 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
         operation_count=len(operations),
         target=copy.deepcopy(request.target),
         summary=request.params.get("summary", ""),
+        dry_run=dry_run if isinstance(dry_run, bool) else False,
+        actor=actor if isinstance(actor, str) else "",
         operations=results,
         preview=_batch_preview(results),
         error=error,
     )
     STATE.record_batch(record)
-    payload = record.to_dict()
-    payload["confirmed"] = True
-    return payload
+    return record.to_dict()

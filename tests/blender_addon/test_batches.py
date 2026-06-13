@@ -1,6 +1,7 @@
 import unittest
 
 from blendex_protocol.errors import BlendexError
+from blendex_protocol.messages import OperationRequest
 
 from blender_addon.blendex.batches import execute_batch
 from blender_addon.blendex.state import STATE
@@ -84,13 +85,58 @@ class BatchExecutionTests(unittest.TestCase):
             executor,
         )
 
-        self.assertTrue(result["confirmed"])
+        self.assertNotIn("confirmed", result)
         self.assertTrue(result["batch_id"].startswith("batch_"))
         self.assertEqual(result["status"], "succeeded")
         self.assertEqual([entry["id"] for entry in result["operations"]], ["make_noise", "link_noise"])
         self.assertEqual(executor.requests[1].params["from_node"], "runtime_noise")
         self.assertEqual(result["operations"][1]["result"]["from_node"], "runtime_noise")
         self.assertEqual(STATE.batch_history.latest().batch_id, result["batch_id"])
+
+    def test_execute_batch_records_dry_run_and_actor_metadata(self):
+        executor = RecordingExecutor()
+        result = execute_batch(
+            {
+                "target": {"object_id": "Cube"},
+                "params": {
+                    "summary": "Audit metadata",
+                    "dry_run": True,
+                    "actor": "codex",
+                    "operations": [
+                        {
+                            "id": "make_noise",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
+                        }
+                    ],
+                },
+            },
+            executor,
+        )
+
+        self.assertEqual(result["dry_run"], True)
+        self.assertEqual(result["actor"], "codex")
+        self.assertEqual(STATE.batch_history.latest().dry_run, True)
+        self.assertEqual(STATE.batch_history.latest().actor, "codex")
+        self.assertEqual(STATE.batch_history.latest().to_dict()["dry_run"], True)
+        self.assertEqual(STATE.batch_history.latest().to_dict()["actor"], "codex")
+
+    def test_execute_batch_rejects_empty_operations_without_recording_history(self):
+        executor = RecordingExecutor()
+        request = OperationRequest(
+            id="req_empty_batch",
+            type="safety.execute_batch",
+            target={"object_id": "Cube"},
+            params={"operations": []},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            execute_batch(request, executor)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+        self.assertEqual(executor.requests, [])
+        self.assertIsNone(STATE.batch_history.latest())
 
     def test_execute_batch_continues_after_failure_and_records_partial_status(self):
         executor = RecordingExecutor(fail_on={"bad_node"})
