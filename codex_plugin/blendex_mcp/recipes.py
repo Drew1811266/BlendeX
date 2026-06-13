@@ -239,6 +239,94 @@ def _modular_building(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     ]
 
 
+def _stone_scatter(params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    object_id = "BlendeX Stone Scatter"
+    return [
+        _carrier(object_id),
+        _modifier(object_id),
+        _node(
+            "scatter_points",
+            object_id,
+            "scatter_points",
+            "GeometryNodeDistributePointsOnFaces",
+            f"Stone Points density {params['density']}",
+            [0, 0],
+        ),
+        _node(
+            "scatter_instances",
+            object_id,
+            "scatter_instances",
+            "GeometryNodeInstanceOnPoints",
+            f"Stone Instances seed {params['seed']}",
+            [220, 0],
+        ),
+        _node(
+            "scatter_realize",
+            object_id,
+            "scatter_realize",
+            "GeometryNodeRealizeInstances",
+            "Realize Stone Instances",
+            [440, 0],
+        ),
+    ]
+
+
+def _ground_points(params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    object_id = "BlendeX Ground Points"
+    return [
+        _carrier(object_id),
+        _modifier(object_id),
+        _node(
+            "ground_points",
+            object_id,
+            "ground_points",
+            "GeometryNodeDistributePointsOnFaces",
+            f"Ground Points density {params['density']}",
+            [0, 0],
+        ),
+        _node(
+            "ground_random",
+            object_id,
+            "ground_random",
+            "FunctionNodeRandomValue",
+            f"Ground Random seed {params['seed']}",
+            [220, 0],
+        ),
+    ]
+
+
+def _grass_scatter(params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    object_id = "BlendeX Grass Scatter"
+    return [
+        _carrier(object_id),
+        _modifier(object_id),
+        _node(
+            "grass_points",
+            object_id,
+            "grass_points",
+            "GeometryNodeDistributePointsOnFaces",
+            f"Grass Points density {params['density']}",
+            [0, 0],
+        ),
+        _node(
+            "grass_instances",
+            object_id,
+            "grass_instances",
+            "GeometryNodeInstanceOnPoints",
+            f"Grass Instances scale {params['scale']}",
+            [220, 0],
+        ),
+        _node(
+            "grass_realize",
+            object_id,
+            "grass_realize",
+            "GeometryNodeRealizeInstances",
+            "Realize Grass Instances",
+            [440, 0],
+        ),
+    ]
+
+
 REGISTRY = RecipeRegistry()
 REGISTRY.register(
     Recipe(
@@ -274,5 +362,55 @@ REGISTRY.register(
         builder=_modular_building,
         required_node_types=["GeometryNodeJoinGeometry", "GeometryNodeSetMaterial"],
         example_prompts=["Create a simple modular building"],
+    )
+)
+REGISTRY.register(
+    Recipe(
+        recipe_id="scatter.stones",
+        label="Random Stone Scatter",
+        category="scatter",
+        parameters=[
+            RecipeParameter("density", "integer", default=10, minimum=1, maximum=200),
+            RecipeParameter("seed", "integer", default=1, minimum=0, maximum=9999),
+        ],
+        builder=_stone_scatter,
+        required_node_types=[
+            "GeometryNodeDistributePointsOnFaces",
+            "GeometryNodeInstanceOnPoints",
+            "GeometryNodeRealizeInstances",
+        ],
+        example_prompts=["Scatter random stones on the ground"],
+    )
+)
+REGISTRY.register(
+    Recipe(
+        recipe_id="scatter.ground_points",
+        label="Ground Point Distribution",
+        category="scatter",
+        parameters=[
+            RecipeParameter("density", "integer", default=25, minimum=1, maximum=500),
+            RecipeParameter("seed", "integer", default=1, minimum=0, maximum=9999),
+        ],
+        builder=_ground_points,
+        required_node_types=["GeometryNodeDistributePointsOnFaces", "FunctionNodeRandomValue"],
+        example_prompts=["Create a ground point distribution"],
+    )
+)
+REGISTRY.register(
+    Recipe(
+        recipe_id="scatter.grass",
+        label="Simple Grass Scatter",
+        category="scatter",
+        parameters=[
+            RecipeParameter("density", "integer", default=40, minimum=1, maximum=1000),
+            RecipeParameter("scale", "number", default=1.0, minimum=0.1, maximum=10.0),
+        ],
+        builder=_grass_scatter,
+        required_node_types=[
+            "GeometryNodeDistributePointsOnFaces",
+            "GeometryNodeInstanceOnPoints",
+            "GeometryNodeRealizeInstances",
+        ],
+        example_prompts=["Create a simple grass scatter"],
     )
 )

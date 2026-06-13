@@ -2,6 +2,8 @@ import math
 import unittest
 
 from codex_plugin.blendex_mcp.recipes import REGISTRY, Recipe, RecipeParameter, RecipeRegistry
+from blendex_protocol.messages import OperationRequest
+from blendex_protocol.validation import validate_request
 
 
 class RecipeTests(unittest.TestCase):
@@ -11,6 +13,52 @@ class RecipeTests(unittest.TestCase):
         self.assertIn("architecture.grid_tower", recipe_ids)
         self.assertIn("architecture.wall_panel", recipe_ids)
         self.assertIn("architecture.modular_building", recipe_ids)
+
+    def test_scatter_recipes_are_registered(self):
+        recipes_by_id = {recipe["recipe_id"]: recipe for recipe in REGISTRY.list_recipes()}
+
+        self.assertEqual(recipes_by_id["scatter.stones"]["label"], "Random Stone Scatter")
+        self.assertEqual(recipes_by_id["scatter.stones"]["category"], "scatter")
+        self.assertEqual(
+            recipes_by_id["scatter.stones"]["required_node_types"],
+            [
+                "GeometryNodeDistributePointsOnFaces",
+                "GeometryNodeInstanceOnPoints",
+                "GeometryNodeRealizeInstances",
+            ],
+        )
+        self.assertEqual(
+            recipes_by_id["scatter.stones"]["example_prompts"],
+            ["Scatter random stones on the ground"],
+        )
+        self.assertEqual(recipes_by_id["scatter.ground_points"]["label"], "Ground Point Distribution")
+        self.assertEqual(recipes_by_id["scatter.grass"]["label"], "Simple Grass Scatter")
+
+    def test_stone_scatter_recipe_reflects_density_and_seed_in_labels(self):
+        operations = REGISTRY.build("scatter.stones", {"density": 37, "seed": 12})
+        labels = [operation["params"].get("label") for operation in operations]
+
+        self.assertIn("Stone Points density 37", labels)
+        self.assertIn("Stone Instances seed 12", labels)
+
+    def test_scatter_recipe_parameters_validate_bounds_and_types(self):
+        invalid_cases = [
+            ("scatter.stones", {"density": 0}, "density must be >= 1"),
+            ("scatter.stones", {"density": 201}, "density must be <= 200"),
+            ("scatter.stones", {"seed": -1}, "seed must be >= 0"),
+            ("scatter.stones", {"seed": 10000}, "seed must be <= 9999"),
+            ("scatter.ground_points", {"density": 501}, "density must be <= 500"),
+            ("scatter.grass", {"density": 1001}, "density must be <= 1000"),
+            ("scatter.grass", {"scale": 0.09}, "scale must be >= 0.1"),
+            ("scatter.grass", {"scale": 10.1}, "scale must be <= 10.0"),
+            ("scatter.grass", {"density": 4.5}, "density must be an integer"),
+            ("scatter.grass", {"scale": "large"}, "scale must be a number"),
+        ]
+
+        for recipe_id, params, message in invalid_cases:
+            with self.subTest(recipe_id=recipe_id, params=params):
+                with self.assertRaisesRegex(ValueError, message):
+                    REGISTRY.build(recipe_id, params)
 
     def test_grid_tower_recipe_builds_owned_graph_batch(self):
         operations = REGISTRY.build("architecture.grid_tower", {"levels": 4, "columns": 3})
@@ -28,6 +76,38 @@ class RecipeTests(unittest.TestCase):
         self.assertIn("Grid Tower 7x2", labels)
         with self.assertRaisesRegex(ValueError, "levels must be >= 1"):
             REGISTRY.build("architecture.grid_tower", {"levels": 0})
+
+    def test_registered_architecture_and_scatter_recipes_emit_valid_batches(self):
+        recipes = [
+            recipe for recipe in REGISTRY.list_recipes()
+            if recipe["recipe_id"].startswith(("architecture.", "scatter."))
+        ]
+
+        self.assertTrue(recipes)
+        for recipe in recipes:
+            with self.subTest(recipe_id=recipe["recipe_id"]):
+                operations = REGISTRY.build(recipe["recipe_id"])
+
+                self.assertTrue(operations)
+                operation_ids = [operation.get("id") for operation in operations]
+                self.assertEqual(len(operation_ids), len(set(operation_ids)))
+
+                created_nodes = [
+                    operation for operation in operations
+                    if operation.get("type") == "geometry_nodes.create_node"
+                ]
+                client_ids = [operation["params"].get("client_id") for operation in created_nodes]
+                self.assertEqual(len(client_ids), len(set(client_ids)))
+
+                node_types = {operation["params"].get("node_type") for operation in created_nodes}
+                self.assertTrue(set(recipe["required_node_types"]).issubset(node_types))
+
+                for operation in operations:
+                    self.assertIsInstance(operation.get("id"), str)
+                    self.assertTrue(operation["id"])
+                    self.assertIsInstance(operation.get("type"), str)
+                    self.assertTrue(operation["type"])
+                    validate_request(OperationRequest.from_dict(operation))
 
     def test_registry_lists_recipe_metadata(self):
         registry = RecipeRegistry()
