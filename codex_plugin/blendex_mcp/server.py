@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 from .blender_client import BlenderClient
 from .tools import TOOL_DEFINITIONS, tool_to_operation
+from .version import VERSION
 
 MAX_JSON_VALUE_DEPTH = 100
 
@@ -191,7 +192,7 @@ def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[D
             {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "blendex", "version": "0.2.0"},
+                "serverInfo": {"name": "blendex", "version": VERSION},
             },
         )
     if method == "tools/list":

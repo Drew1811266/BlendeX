@@ -31,6 +31,11 @@ BlendeX 想解决的问题是：
 
 这还不是完整产品，但已经建立了后续扩展自然语言创作能力所需的插件、协议、安全和测试基础。
 
+## Development Track
+
+BlendeX is currently moving from the released v0.2 graph kernel toward the v0.3 creative workflow track.
+The v0.3 target is an early-user-ready loop: plan, dry-run, confirm, execute, inspect, retry, and undo BlendeX-owned Geometry Nodes changes from CodeX.
+
 ## 架构概览
 
 BlendeX 采用 Split Bridge 架构：
