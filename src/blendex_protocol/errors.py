@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 ERROR_CODES = {
     "BLENDER_NOT_CONNECTED",
     "AUTH_REQUIRED",
+    "AUTH_FAILED",
     "UNSUPPORTED_OPERATION",
     "OBJECT_NOT_FOUND",
     "OBJECT_NOT_SELECTED",

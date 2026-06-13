@@ -14,6 +14,7 @@ from blender_addon.blendex.server import (
     _read_ws_text,
     _dispatch_payload_for_service,
     _drain_main_thread_dispatch,
+    _send_handshake,
     _send_ws_text,
     _websocket_accept_key,
     dispatch_payload,
@@ -31,6 +32,14 @@ class FakeSocket:
         chunk = self._chunks.pop(0)
         self._chunks.insert(0, chunk[size:])
         return chunk[:size]
+
+
+class CaptureSendSocket:
+    def __init__(self):
+        self.sent = b""
+
+    def sendall(self, data):
+        self.sent += data
 
 
 class DispatchTests(unittest.TestCase):
@@ -346,6 +355,19 @@ class MainThreadDispatchTests(unittest.TestCase):
 
 
 class WebSocketTests(unittest.TestCase):
+    def setUp(self):
+        self.original_session_token = STATE.session_token
+        self.original_client_authenticated = getattr(STATE, "client_authenticated", False)
+        self.original_last_auth_error = getattr(STATE, "last_auth_error", "")
+        STATE.session_token = "secret-token"
+        STATE.client_authenticated = False
+        STATE.last_auth_error = ""
+
+    def tearDown(self):
+        STATE.session_token = self.original_session_token
+        STATE.client_authenticated = self.original_client_authenticated
+        STATE.last_auth_error = self.original_last_auth_error
+
     def test_websocket_accept_key_matches_rfc_example(self):
         self.assertEqual(
             _websocket_accept_key("dGhlIHNhbXBsZSBub25jZQ=="),
@@ -363,6 +385,17 @@ class WebSocketTests(unittest.TestCase):
 
         self.assertEqual(headers["sec-websocket-key"], "abc")
         self.assertEqual(remaining, b"\x81\x05hello")
+
+    def test_send_handshake_rejects_missing_auth_token_with_401(self):
+        sock = CaptureSendSocket()
+
+        with self.assertRaises(BlendexError) as raised:
+            _send_handshake(sock, {"sec-websocket-key": "abc"})
+
+        self.assertEqual(raised.exception.code, "AUTH_REQUIRED")
+        self.assertIn(b"HTTP/1.1 401 Unauthorized\r\n", sock.sent)
+        self.assertIn(b"X-BlendeX-Error: AUTH_REQUIRED\r\n", sock.sent)
+        self.assertFalse(STATE.client_authenticated)
 
     def test_send_and_read_ws_text_round_trips_with_socketpair(self):
         left, right = socket.socketpair()

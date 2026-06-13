@@ -288,6 +288,7 @@ def stop_service() -> None:
             _server_thread = None
     STATE.service_running = False
     STATE.client_connected = False
+    STATE.client_authenticated = False
 
 
 def _default_executor() -> Any:
@@ -314,6 +315,20 @@ def _websocket_accept_key(client_key: str) -> str:
     return base64.b64encode(digest).decode("ascii")
 
 
+def _validate_auth_headers(headers: Dict[str, str]) -> None:
+    token = headers.get("x-blendex-token")
+    if not token:
+        STATE.client_authenticated = False
+        STATE.last_auth_error = "Missing BlendeX token."
+        raise BlendexError("AUTH_REQUIRED", "Missing BlendeX session token.")
+    if token != STATE.session_token:
+        STATE.client_authenticated = False
+        STATE.last_auth_error = "Invalid BlendeX token."
+        raise BlendexError("AUTH_FAILED", "Invalid BlendeX session token.")
+    STATE.client_authenticated = True
+    STATE.last_auth_error = ""
+
+
 def _read_http_headers(conn: socket.socket) -> Tuple[Dict[str, str], bytes]:
     data = b""
     while b"\r\n\r\n" not in data:
@@ -334,6 +349,16 @@ def _read_http_headers(conn: socket.socket) -> Tuple[Dict[str, str], bytes]:
 
 
 def _send_handshake(conn: socket.socket, headers: Dict[str, str]) -> None:
+    try:
+        _validate_auth_headers(headers)
+    except BlendexError as error:
+        response = (
+            "HTTP/1.1 401 Unauthorized\r\n"
+            "Content-Length: 0\r\n"
+            f"X-BlendeX-Error: {error.code}\r\n\r\n"
+        )
+        conn.sendall(response.encode("utf-8"))
+        raise
     key = headers.get("sec-websocket-key")
     if not key:
         raise BlendexError("AUTH_REQUIRED", "Missing WebSocket key.")
@@ -443,6 +468,7 @@ def _run_socket_server() -> None:
                             _LOGGER.exception("BlendeX client handling failed.")
                     finally:
                         STATE.client_connected = False
+                        STATE.client_authenticated = False
                         with _socket_lock:
                             if _active_client_socket is conn:
                                 _active_client_socket = None
@@ -456,3 +482,4 @@ def _run_socket_server() -> None:
                 _active_client_socket = None
             STATE.service_running = False
             STATE.client_connected = False
+            STATE.client_authenticated = False

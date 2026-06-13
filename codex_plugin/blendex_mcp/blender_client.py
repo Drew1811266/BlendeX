@@ -13,11 +13,18 @@ class BlenderConnectionConfig:
     host: str = "127.0.0.1"
     port: int = 8765
     timeout_seconds: float = 5.0
+    session_token: Optional[str] = None
+
+    @classmethod
+    def from_environment(cls) -> "BlenderConnectionConfig":
+        return cls(
+            session_token=os.environ.get("BLENDEX_SESSION_TOKEN") or os.environ.get("BLENDEX_TOKEN")
+        )
 
 
 class BlenderClient:
     def __init__(self, config: Optional[BlenderConnectionConfig] = None):
-        self.config = config or BlenderConnectionConfig()
+        self.config = config or BlenderConnectionConfig.from_environment()
 
     def send_operation(self, operation: Dict[str, Any]) -> Dict[str, Any]:
         with socket.create_connection(
@@ -30,14 +37,17 @@ class BlenderClient:
 
     def _handshake(self, sock: socket.socket) -> None:
         key = base64.b64encode(os.urandom(16)).decode("ascii")
-        request = (
-            "GET /blendex HTTP/1.1\r\n"
-            f"Host: {self.config.host}:{self.config.port}\r\n"
-            "Upgrade: websocket\r\n"
-            "Connection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {key}\r\n"
-            "Sec-WebSocket-Version: 13\r\n\r\n"
-        )
+        request_lines = [
+            "GET /blendex HTTP/1.1",
+            f"Host: {self.config.host}:{self.config.port}",
+            "Upgrade: websocket",
+            "Connection: Upgrade",
+            f"Sec-WebSocket-Key: {key}",
+        ]
+        if self.config.session_token:
+            request_lines.append(f"X-BlendeX-Token: {self.config.session_token}")
+        request_lines.append("Sec-WebSocket-Version: 13")
+        request = "\r\n".join(request_lines) + "\r\n\r\n"
         sock.sendall(request.encode("utf-8"))
         response_bytes = b""
         while b"\r\n\r\n" not in response_bytes:

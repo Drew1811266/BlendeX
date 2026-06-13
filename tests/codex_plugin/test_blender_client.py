@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import os
 import unittest
 
 from codex_plugin.blendex_mcp.blender_client import BlenderClient, BlenderConnectionConfig
@@ -67,6 +68,16 @@ class ReadSocket:
 
 
 class BlenderClientTests(unittest.TestCase):
+    def setUp(self):
+        self.original_session_token = os.environ.pop("BLENDEX_SESSION_TOKEN", None)
+        self.original_token = os.environ.pop("BLENDEX_TOKEN", None)
+
+    def tearDown(self):
+        if self.original_session_token is not None:
+            os.environ["BLENDEX_SESSION_TOKEN"] = self.original_session_token
+        if self.original_token is not None:
+            os.environ["BLENDEX_TOKEN"] = self.original_token
+
     def test_default_config_points_to_local_service(self):
         config = BlenderConnectionConfig()
 
@@ -86,6 +97,14 @@ class BlenderClientTests(unittest.TestCase):
         client._handshake(sock)
 
         self.assertIn(b"Sec-WebSocket-Key:", sock.sent)
+
+    def test_handshake_sends_configured_session_token(self):
+        client = BlenderClient(BlenderConnectionConfig(session_token="secret-token"))
+        sock = FakeHandshakeSocket()
+
+        client._handshake(sock)
+
+        self.assertIn(b"X-BlendeX-Token: secret-token\r\n", sock.sent)
 
     def test_handshake_reads_split_response_headers(self):
         client = BlenderClient()
