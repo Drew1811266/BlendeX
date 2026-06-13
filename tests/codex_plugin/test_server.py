@@ -1,6 +1,7 @@
 import json
 import unittest
 
+from codex_plugin.blendex_mcp.recipes import Recipe, RecipeParameter, RecipeRegistry
 from codex_plugin.blendex_mcp import server
 from codex_plugin.blendex_mcp.workflow import confirmed_batch_arguments
 
@@ -250,6 +251,161 @@ class ServerTests(unittest.TestCase):
 
                 self.assertEqual(response["error"]["code"], -32602)
                 self.assertEqual(client.operations, [])
+
+    def test_list_recipes_is_handled_locally_without_blender_client(self):
+        client = FakeClient()
+
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 30,
+                "method": "tools/call",
+                "params": {"name": "blendex_list_recipes", "arguments": {}},
+            },
+            client,
+        )
+
+        self.assertEqual(response["id"], 30)
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertEqual(payload, {"ok": True, "result": {"recipes": []}})
+        self.assertEqual(client.operations, [])
+
+    def test_build_recipe_batch_is_handled_locally_without_blender_client(self):
+        registry = RecipeRegistry()
+        registry.register(
+            Recipe(
+                recipe_id="test.recipe",
+                label="Test Recipe",
+                category="tests",
+                parameters=[RecipeParameter("width", "number", 2.0, 1.0, 5.0, "Width.")],
+                builder=lambda params: [
+                    {
+                        "id": "op_1",
+                        "type": "geometry_nodes.set_socket_value",
+                        "target": {},
+                        "params": {"value": params["width"]},
+                    }
+                ],
+                required_node_types=[],
+                example_prompts=[],
+            )
+        )
+        client = FakeClient()
+        original_registry = server.REGISTRY
+        server.REGISTRY = registry
+        try:
+            response = server.handle_message(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 31,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "blendex_build_recipe_batch",
+                        "arguments": {"recipe_id": "test.recipe", "parameters": {"width": 4.0}},
+                    },
+                },
+                client,
+            )
+        finally:
+            server.REGISTRY = original_registry
+
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertEqual(
+            payload,
+            {
+                "ok": True,
+                "result": {
+                    "operations": [
+                        {
+                            "id": "op_1",
+                            "type": "geometry_nodes.set_socket_value",
+                            "target": {},
+                            "params": {"value": 4.0},
+                        }
+                    ]
+                },
+            },
+        )
+        self.assertEqual(client.operations, [])
+
+    def test_build_recipe_batch_unknown_recipe_returns_tool_error(self):
+        client = FakeClient()
+
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 32,
+                "method": "tools/call",
+                "params": {
+                    "name": "blendex_build_recipe_batch",
+                    "arguments": {"recipe_id": "missing"},
+                },
+            },
+            client,
+        )
+
+        self.assertTrue(response["result"]["isError"])
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "RECIPE_NOT_FOUND")
+        self.assertEqual(client.operations, [])
+
+    def test_build_recipe_batch_validation_failure_returns_tool_error(self):
+        registry = RecipeRegistry()
+        registry.register(
+            Recipe(
+                recipe_id="test.recipe",
+                label="Test Recipe",
+                category="tests",
+                parameters=[RecipeParameter("width", "number", 2.0, 1.0, 5.0, "Width.")],
+                builder=lambda params: [],
+                required_node_types=[],
+                example_prompts=[],
+            )
+        )
+        client = FakeClient()
+        original_registry = server.REGISTRY
+        server.REGISTRY = registry
+        try:
+            response = server.handle_message(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 33,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "blendex_build_recipe_batch",
+                        "arguments": {"recipe_id": "test.recipe", "parameters": {"width": 8.0}},
+                    },
+                },
+                client,
+            )
+        finally:
+            server.REGISTRY = original_registry
+
+        self.assertTrue(response["result"]["isError"])
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "VALIDATION_FAILED")
+        self.assertEqual(client.operations, [])
+
+    def test_build_recipe_batch_rejects_empty_recipe_id_before_local_handling(self):
+        client = FakeClient()
+
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 34,
+                "method": "tools/call",
+                "params": {
+                    "name": "blendex_build_recipe_batch",
+                    "arguments": {"recipe_id": ""},
+                },
+            },
+            client,
+        )
+
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(client.operations, [])
 
     def test_tools_call_rejects_non_finite_json_numbers(self):
         invalid_calls = [

@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 STRING_PROP = {"type": "string"}
 NON_EMPTY_STRING_PROP = {"type": "string", "minLength": 1}
 NUMBER_PROP = {"type": "number"}
+PARAMETERS_OBJECT_PROP = {"type": "object"}
 JSON_VALUE_PROP = {
     "oneOf": [
         {"type": "string"},
@@ -41,6 +42,24 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         "name": "blendex_inspect_scene",
         "description": "Inspect the current Blender scene and selected object.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "blendex_list_recipes",
+        "description": "List available local BlendeX recipe templates.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "blendex_build_recipe_batch",
+        "description": "Build a local BlendeX operation batch from a recipe and parameters.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "recipe_id": NON_EMPTY_STRING_PROP,
+                "parameters": PARAMETERS_OBJECT_PROP,
+            },
+            "required": ["recipe_id"],
+            "additionalProperties": False,
+        },
     },
     {
         "name": "blendex_create_node",
@@ -183,6 +202,18 @@ def tool_to_operation(name: str, arguments: Dict[str, Any], request_id: str) -> 
         return {"id": request_id, "type": "capabilities.scan", "target": {}, "params": {}}
     if name == "blendex_inspect_scene":
         return {"id": request_id, "type": "scene.inspect", "target": {}, "params": {}}
+    if name == "blendex_list_recipes":
+        return {"id": request_id, "type": "recipes.list", "target": {}, "params": {}}
+    if name == "blendex_build_recipe_batch":
+        return {
+            "id": request_id,
+            "type": "recipes.build_batch",
+            "target": {},
+            "params": {
+                "recipe_id": arguments["recipe_id"],
+                "parameters": arguments.get("parameters", {}),
+            },
+        }
     if name == "blendex_create_node":
         return {
             "id": request_id,

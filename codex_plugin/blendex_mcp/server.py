@@ -5,6 +5,7 @@ import uuid
 from typing import Any, Dict, Optional
 
 from .blender_client import BlenderClient
+from .recipes import REGISTRY
 from .tools import TOOL_DEFINITIONS, tool_to_operation
 from .version import VERSION
 
@@ -180,6 +181,33 @@ def _validate_tool_arguments(name: str, arguments: Dict[str, Any]) -> Optional[s
     return None
 
 
+def _recipe_error_code(error: ValueError) -> str:
+    if str(error).startswith("Unknown recipe:"):
+        return "RECIPE_NOT_FOUND"
+    return "VALIDATION_FAILED"
+
+
+def _handle_local_recipe_operation(operation: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    operation_type = operation.get("type")
+    if operation_type == "recipes.list":
+        return _tool_result({"ok": True, "result": {"recipes": REGISTRY.list_recipes()}})
+    if operation_type == "recipes.build_batch":
+        try:
+            operations = REGISTRY.build(
+                operation["params"]["recipe_id"],
+                operation["params"].get("parameters", {}),
+            )
+        except ValueError as error:
+            return _tool_result(
+                {
+                    "ok": False,
+                    "error": {"code": _recipe_error_code(error), "message": str(error)},
+                }
+            )
+        return _tool_result({"ok": True, "result": {"operations": operations}})
+    return None
+
+
 def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[Dict[str, Any]]:
     message_id = _message_id(message)
     if not isinstance(message, dict):
@@ -219,6 +247,9 @@ def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[D
             return json_rpc_error(message_id, -32601, str(error))
         except (KeyError, TypeError) as error:
             return _invalid_params(message_id, f"Invalid params: {error}")
+        local_result = _handle_local_recipe_operation(operation)
+        if local_result is not None:
+            return json_rpc_success(message_id, local_result)
         try:
             result = client.send_operation(operation)
         except (ConnectionError, OSError, TimeoutError, json.JSONDecodeError) as error:
