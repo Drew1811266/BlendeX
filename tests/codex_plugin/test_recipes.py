@@ -1,10 +1,34 @@
 import math
 import unittest
 
-from codex_plugin.blendex_mcp.recipes import Recipe, RecipeParameter, RecipeRegistry
+from codex_plugin.blendex_mcp.recipes import REGISTRY, Recipe, RecipeParameter, RecipeRegistry
 
 
 class RecipeTests(unittest.TestCase):
+    def test_architecture_recipes_are_registered(self):
+        recipe_ids = {recipe["recipe_id"] for recipe in REGISTRY.list_recipes()}
+
+        self.assertIn("architecture.grid_tower", recipe_ids)
+        self.assertIn("architecture.wall_panel", recipe_ids)
+        self.assertIn("architecture.modular_building", recipe_ids)
+
+    def test_grid_tower_recipe_builds_owned_graph_batch(self):
+        operations = REGISTRY.build("architecture.grid_tower", {"levels": 4, "columns": 3})
+        operation_types = [operation["type"] for operation in operations]
+
+        self.assertEqual(operation_types[0], "scene.create_carrier_mesh")
+        self.assertIn("geometry_nodes.create_modifier", operation_types)
+        self.assertIn("geometry_nodes.create_node", operation_types)
+        self.assertTrue(any(operation["params"].get("client_id") == "grid_join" for operation in operations))
+
+    def test_grid_tower_recipe_reflects_parameters_and_validates_range(self):
+        operations = REGISTRY.build("architecture.grid_tower", {"levels": 7, "columns": 2})
+        labels = [operation["params"].get("label") for operation in operations]
+
+        self.assertIn("Grid Tower 7x2", labels)
+        with self.assertRaisesRegex(ValueError, "levels must be >= 1"):
+            REGISTRY.build("architecture.grid_tower", {"levels": 0})
+
     def test_registry_lists_recipe_metadata(self):
         registry = RecipeRegistry()
         registry.register(

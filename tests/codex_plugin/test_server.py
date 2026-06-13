@@ -267,7 +267,11 @@ class ServerTests(unittest.TestCase):
 
         self.assertEqual(response["id"], 30)
         payload = json.loads(response["result"]["content"][0]["text"])
-        self.assertEqual(payload, {"ok": True, "result": {"recipes": []}})
+        self.assertTrue(payload["ok"])
+        self.assertIn("recipes", payload["result"])
+        self.assertTrue(
+            any(recipe["recipe_id"] == "architecture.grid_tower" for recipe in payload["result"]["recipes"])
+        )
         self.assertEqual(client.operations, [])
 
     def test_build_recipe_batch_is_handled_locally_without_blender_client(self):
