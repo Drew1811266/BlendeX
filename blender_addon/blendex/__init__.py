@@ -52,10 +52,21 @@ class BLENDEX_OT_stop_service(_OperatorBase):
         return {"FINISHED"}
 
 
+class BLENDEX_OT_undo_last_batch(_OperatorBase):
+    bl_idname = "blendex.undo_last_batch"
+    bl_label = "Undo Last BlendeX Batch"
+
+    def execute(self, context):
+        from .batches import undo_last_batch
+
+        undo_last_batch()
+        return {"FINISHED"}
+
+
 def _load_classes():
     from .ui import panel_classes
 
-    return [BLENDEX_OT_start_service, BLENDEX_OT_stop_service] + panel_classes()
+    return [BLENDEX_OT_start_service, BLENDEX_OT_stop_service, BLENDEX_OT_undo_last_batch] + panel_classes()
 
 
 def register():

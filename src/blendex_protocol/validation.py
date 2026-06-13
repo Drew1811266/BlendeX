@@ -126,6 +126,11 @@ def _require_optional_summary(params) -> None:
         raise BlendexError("VALIDATION_FAILED", "Batch summary must be a non-empty string.")
 
 
+def _require_no_params(params, message: str) -> None:
+    if params:
+        raise BlendexError("VALIDATION_FAILED", message)
+
+
 def validate_request(request: OperationRequest) -> None:
     if request.type not in ALLOWED_OPERATIONS:
         raise BlendexError(
@@ -196,3 +201,5 @@ def validate_request(request: OperationRequest) -> None:
         _require_optional_summary(request.params)
     if request.type == "safety.inspect_batch":
         _require_string(request.params, "batch_id", "inspect_batch requires params.batch_id.")
+    if request.type == "safety.undo_last_batch":
+        _require_no_params(request.params, "undo_last_batch does not accept params.")

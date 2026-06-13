@@ -1,6 +1,6 @@
 import secrets
 from dataclasses import dataclass, field
-from typing import List
+from typing import Callable, List, Optional
 
 from .history import BatchHistory, BatchRecord
 from .logs import OperationLog
@@ -17,6 +17,7 @@ class BlendexState:
     recent_logs: List[OperationLog] = field(default_factory=list)
     max_logs: int = 50
     batch_history: BatchHistory = field(default_factory=BatchHistory)
+    undo_callback: Optional[Callable[[BatchRecord], None]] = None
 
     def record(self, log: OperationLog) -> None:
         self.recent_logs.insert(0, log)

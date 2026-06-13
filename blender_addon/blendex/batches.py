@@ -117,13 +117,23 @@ def _batch_preview(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def _operation_error_result(index: int, operation: Any, error: BlendexError) -> Dict[str, Any]:
+def _operation_error_result(
+    index: int,
+    operation: Any,
+    error: BlendexError,
+    mutation_occurred: bool,
+    batch_id: str,
+) -> Dict[str, Any]:
+    error_payload = error.to_dict()
+    error_payload["mutation_occurred"] = mutation_occurred
+    if mutation_occurred:
+        error_payload["batch_id"] = batch_id
     return {
         "index": index,
         "id": operation.get("id", f"op_{index}") if isinstance(operation, dict) else f"op_{index}",
         "type": operation.get("type", "") if isinstance(operation, dict) else "",
         "ok": False,
-        "error": error.to_dict(),
+        "error": error_payload,
     }
 
 
@@ -150,6 +160,7 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
     results: List[Dict[str, Any]] = []
     client_nodes: Dict[str, str] = {}
     declared_client_ids = _declared_client_ids(operations)
+    mutation_occurred = False
 
     for index, operation in enumerate(operations):
         try:
@@ -169,11 +180,12 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
                     "result": result,
                 }
             )
+            mutation_occurred = True
         except BlendexError as error:
-            results.append(_operation_error_result(index, operation, error))
+            results.append(_operation_error_result(index, operation, error, mutation_occurred, batch_id))
         except Exception as error:
             blendex_error = BlendexError("EXECUTION_FAILED", str(error) or error.__class__.__name__)
-            results.append(_operation_error_result(index, operation, blendex_error))
+            results.append(_operation_error_result(index, operation, blendex_error, mutation_occurred, batch_id))
 
     status = _status_for(results)
     error = _first_error(results)
@@ -191,3 +203,36 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
     )
     STATE.record_batch(record)
     return record.to_dict()
+
+
+def undo_last_batch() -> Dict[str, Any]:
+    batch = STATE.batch_history.latest()
+    if batch is None:
+        raise BlendexError("UNDO_UNAVAILABLE", "No BlendeX batch is available to undo.")
+
+    if batch.undo_status == "undone":
+        return batch.to_dict()
+
+    if batch.status not in {"succeeded", "partial"}:
+        error = BlendexError("UNDO_UNAVAILABLE", "Only applied BlendeX batches can be undone.")
+        batch.undo_status = "unavailable"
+        batch.undo_error = error.to_dict()
+        raise error
+
+    callback = getattr(STATE, "undo_callback", None)
+    if callable(callback):
+        try:
+            callback(batch)
+        except BlendexError as error:
+            batch.undo_status = "failed"
+            batch.undo_error = error.to_dict()
+            raise
+        except Exception as error:
+            blendex_error = BlendexError("UNDO_FAILED", str(error) or error.__class__.__name__)
+            batch.undo_status = "failed"
+            batch.undo_error = blendex_error.to_dict()
+            raise blendex_error
+
+    batch.undo_status = "undone"
+    batch.undo_error = None
+    return batch.to_dict()

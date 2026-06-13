@@ -29,6 +29,7 @@ class BLENDEX_PT_panel(_PanelBase):
         layout.label(text=f"Token: {STATE.session_token[:6]}...")
         layout.operator("blendex.start_service", text="Start Service")
         layout.operator("blendex.stop_service", text="Stop Service")
+        layout.operator("blendex.undo_last_batch", text="Undo Last Batch")
         layout.separator()
         layout.label(text="Recent Operations")
         for log in STATE.recent_logs[:8]:

@@ -88,6 +88,12 @@ def _execute_batch(request: OperationRequest, executor: Any) -> Dict[str, Any]:
     return execute_batch(request, executor)
 
 
+def _undo_last_batch() -> Dict[str, Any]:
+    from .batches import undo_last_batch
+
+    return undo_last_batch()
+
+
 def _batch_history(request: OperationRequest) -> Dict[str, Any]:
     limit = request.params.get("limit", 20)
     if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
@@ -134,6 +140,8 @@ def dispatch_payload(
             result = _dry_run(request, executor)
         elif request.type == "safety.execute_batch":
             result = _execute_batch(request, executor)
+        elif request.type == "safety.undo_last_batch":
+            result = _undo_last_batch()
         elif request.type == "safety.batch_history":
             result = _batch_history(request)
         elif request.type == "safety.inspect_batch":
@@ -176,6 +184,7 @@ def _dispatch_payload_with_factory(payload: Any, executor_factory: Callable[[], 
         "capabilities.supported_operations",
         "scene.create_carrier_mesh",
         "scene.inspect",
+        "safety.undo_last_batch",
     }:
         return dispatch_payload(payload, executor=None)
     return dispatch_payload(payload, executor=executor_factory())

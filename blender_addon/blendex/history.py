@@ -30,6 +30,7 @@ class BatchRecord:
     actor: str = ""
     error: Optional[Dict[str, Any]] = None
     undo_status: str = "not_requested"
+    undo_error: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -45,6 +46,7 @@ class BatchRecord:
             "preview": _json_safe(self.preview),
             "error": _json_safe(self.error),
             "undo_status": self.undo_status,
+            "undo_error": _json_safe(self.undo_error),
         }
 
 

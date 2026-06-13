@@ -26,6 +26,7 @@ IMPLEMENTED_OPERATIONS = {
     "safety.execute_batch",
     "safety.batch_history",
     "safety.inspect_batch",
+    "safety.undo_last_batch",
 }
 
 _RUNTIME_NODE_PREFIXES = ("GeometryNode", "FunctionNode", "ShaderNode")

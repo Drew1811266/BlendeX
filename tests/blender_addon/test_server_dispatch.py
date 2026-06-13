@@ -46,6 +46,7 @@ class DispatchTests(unittest.TestCase):
     def setUp(self):
         STATE.recent_logs.clear()
         STATE.batch_history.records.clear()
+        STATE.undo_callback = None
 
     def test_dispatch_rejects_unknown_operation_as_json_response(self):
         response = dispatch_payload(
@@ -301,6 +302,49 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(inspect_response["result"]["batch_id"], batch_id)
         self.assertEqual(inspect_response["result"]["dry_run"], True)
         self.assertEqual(inspect_response["result"]["actor"], "codex")
+
+    def test_dispatch_handles_undo_last_batch(self):
+        class BatchExecutor:
+            def execute(self, request):
+                return {"id": "Node.001"}
+
+        execute_response = dispatch_payload(
+            {
+                "id": "req_execute_batch",
+                "type": "safety.execute_batch",
+                "target": {"object_id": "Cube"},
+                "params": {
+                    "operations": [
+                        {
+                            "id": "op_node",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_type": "GeometryNodeJoinGeometry", "client_id": "join"},
+                        }
+                    ],
+                },
+            },
+            executor=BatchExecutor(),
+        )
+        batch_id = execute_response["result"]["batch_id"]
+
+        undo_response = dispatch_payload(
+            {"id": "req_undo", "type": "safety.undo_last_batch", "target": {}, "params": {}},
+            executor=None,
+        )
+
+        self.assertTrue(undo_response["ok"])
+        self.assertEqual(undo_response["result"]["batch_id"], batch_id)
+        self.assertEqual(undo_response["result"]["undo_status"], "undone")
+
+    def test_dispatch_returns_undo_unavailable_when_history_is_empty(self):
+        response = dispatch_payload(
+            {"id": "req_undo_empty", "type": "safety.undo_last_batch", "target": {}, "params": {}},
+            executor=None,
+        )
+
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "UNDO_UNAVAILABLE")
 
     def test_dispatch_returns_batch_not_found_for_unknown_batch(self):
         response = dispatch_payload(

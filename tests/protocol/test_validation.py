@@ -312,6 +312,29 @@ class ValidationTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
+    def test_accepts_undo_last_batch_without_params(self):
+        request = OperationRequest(
+            id="req_undo",
+            type="safety.undo_last_batch",
+            target={},
+            params={},
+        )
+
+        validate_request(request)
+
+    def test_rejects_undo_last_batch_with_unexpected_params(self):
+        request = OperationRequest(
+            id="req_undo_bad",
+            type="safety.undo_last_batch",
+            target={},
+            params={"operations": []},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
     def test_rejects_batch_validation_without_operations_array(self):
         request = OperationRequest(
             id="req_batch_bad",
