@@ -7,9 +7,16 @@ from codex_plugin.blendex_mcp.blender_client import BlenderClient, BlenderConnec
 
 
 class FakeHandshakeSocket:
-    def __init__(self, *, status: str = "101 Switching Protocols", accept_override=None):
+    def __init__(
+        self,
+        *,
+        status: str = "101 Switching Protocols",
+        accept_override=None,
+        response_headers=None,
+    ):
         self.status = status
         self.accept_override = accept_override
+        self.response_headers = response_headers or {}
         self.sent = b""
 
     def sendall(self, data):
@@ -28,10 +35,14 @@ class FakeHandshakeSocket:
                 (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")
             ).digest()
             accept = base64.b64encode(digest).decode("ascii")
+        extra_headers = "".join(
+            f"{name}: {value}\r\n" for name, value in self.response_headers.items()
+        )
         return (
             f"HTTP/1.1 {self.status}\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
+            f"{extra_headers}"
             f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
         ).encode("utf-8")
 
@@ -119,6 +130,34 @@ class BlenderClientTests(unittest.TestCase):
 
         with self.assertRaises(ConnectionError):
             client._handshake(FakeHandshakeSocket(status="200 OK"))
+
+    def test_handshake_surfaces_auth_required_response_detail(self):
+        client = BlenderClient()
+
+        with self.assertRaisesRegex(
+            ConnectionError,
+            "BlendeX authentication failed: AUTH_REQUIRED \\(HTTP 401\\)",
+        ):
+            client._handshake(
+                FakeHandshakeSocket(
+                    status="401 Unauthorized",
+                    response_headers={"X-BlendeX-Error": "AUTH_REQUIRED"},
+                )
+            )
+
+    def test_handshake_surfaces_auth_failed_response_detail(self):
+        client = BlenderClient()
+
+        with self.assertRaisesRegex(
+            ConnectionError,
+            "BlendeX authentication failed: AUTH_FAILED \\(HTTP 401\\)",
+        ):
+            client._handshake(
+                FakeHandshakeSocket(
+                    status="401 Unauthorized",
+                    response_headers={"X-BlendeX-Error": "AUTH_FAILED"},
+                )
+            )
 
     def test_handshake_rejects_invalid_accept_header(self):
         client = BlenderClient()

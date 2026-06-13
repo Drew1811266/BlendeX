@@ -463,6 +463,12 @@ def _run_socket_server() -> None:
                     except socket.timeout:
                         if not _stop_event.is_set():
                             _LOGGER.exception("BlendeX client socket timed out.")
+                    except BlendexError as error:
+                        if not _stop_event.is_set():
+                            _LOGGER.warning(
+                                "BlendeX client authentication failed: %s",
+                                error.code,
+                            )
                     except Exception:
                         if not _stop_event.is_set():
                             _LOGGER.exception("BlendeX client handling failed.")

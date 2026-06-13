@@ -58,16 +58,21 @@ class BlenderClient:
         response = response_bytes.decode("utf-8", errors="replace")
         lines = response.split("\r\n")
         status_parts = lines[0].split()
-        if len(status_parts) < 2 or status_parts[0] not in {"HTTP/1.0", "HTTP/1.1"}:
-            raise ConnectionError("BlendeX service did not accept WebSocket handshake.")
-        if status_parts[1] != "101":
-            raise ConnectionError("BlendeX service did not accept WebSocket handshake.")
         headers = {}
         for line in lines[1:]:
             if not line or ":" not in line:
                 continue
             name, value = line.split(":", 1)
             headers[name.strip().lower()] = value.strip()
+        if len(status_parts) < 2 or status_parts[0] not in {"HTTP/1.0", "HTTP/1.1"}:
+            raise ConnectionError("BlendeX service did not accept WebSocket handshake.")
+        if status_parts[1] != "101":
+            if status_parts[1] == "401":
+                auth_error = headers.get("x-blendex-error", "HTTP 401")
+                raise ConnectionError(
+                    f"BlendeX authentication failed: {auth_error} (HTTP 401)."
+                )
+            raise ConnectionError("BlendeX service did not accept WebSocket handshake.")
         digest = hashlib.sha1(
             (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")
         ).digest()
