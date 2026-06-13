@@ -2,6 +2,7 @@ import json
 import unittest
 
 from codex_plugin.blendex_mcp import server
+from codex_plugin.blendex_mcp.workflow import confirmed_batch_arguments
 
 
 class FakeClient:
@@ -203,11 +204,11 @@ class ServerTests(unittest.TestCase):
                 "method": "tools/call",
                 "params": {
                     "name": "blendex_execute_confirmed_batch",
-                    "arguments": {
-                        "operations": operations,
-                        "confirmation_id": "confirm_1",
-                        "summary": "Inspect scene",
-                    },
+                    "arguments": confirmed_batch_arguments(
+                        operations=operations,
+                        confirmation_id="confirm_1",
+                        summary="Inspect scene",
+                    ),
                 },
             },
             client,
@@ -223,11 +224,16 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(operation["params"]["preview"], {})
 
     def test_execute_confirmed_batch_requires_confirmation_arguments(self):
+        operations = [{"id": "op_1", "type": "scene.inspect", "target": {}, "params": {}}]
         for arguments in (
             {"operations": []},
             {"operations": [], "confirmation_id": "confirm_1"},
             {"operations": [], "summary": "Execute"},
+            {"operations": [], "confirmation_id": "confirm_1", "summary": "Execute"},
+            {"operations": operations, "confirmation_id": "", "summary": "Execute"},
+            {"operations": operations, "confirmation_id": "confirm_1", "summary": ""},
         ):
+            client = FakeClient()
             with self.subTest(arguments=arguments):
                 response = server.handle_message(
                     {
@@ -239,10 +245,11 @@ class ServerTests(unittest.TestCase):
                             "arguments": arguments,
                         },
                     },
-                    FakeClient(),
+                    client,
                 )
 
                 self.assertEqual(response["error"]["code"], -32602)
+                self.assertEqual(client.operations, [])
 
     def test_tools_call_rejects_non_finite_json_numbers(self):
         invalid_calls = [

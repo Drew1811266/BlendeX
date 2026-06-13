@@ -2,6 +2,7 @@ from typing import Any, Dict, List
 
 
 STRING_PROP = {"type": "string"}
+NON_EMPTY_STRING_PROP = {"type": "string", "minLength": 1}
 NUMBER_PROP = {"type": "number"}
 JSON_VALUE_PROP = {
     "oneOf": [
@@ -15,6 +16,7 @@ JSON_VALUE_PROP = {
 }
 OPERATION_ARRAY_PROP = {
     "type": "array",
+    "minItems": 1,
     "items": {
         "type": "object",
         "properties": {
@@ -161,8 +163,8 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "operations": OPERATION_ARRAY_PROP,
-                "confirmation_id": STRING_PROP,
-                "summary": STRING_PROP,
+                "confirmation_id": NON_EMPTY_STRING_PROP,
+                "summary": NON_EMPTY_STRING_PROP,
                 "preview": {"type": "object"},
             },
             "required": ["operations", "confirmation_id", "summary"],

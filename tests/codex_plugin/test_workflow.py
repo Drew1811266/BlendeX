@@ -43,7 +43,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("0 links", summary)
         self.assertIn("0 socket values", summary)
 
-    def test_confirmed_batch_arguments_marks_confirmation_and_defaults_preview(self):
+    def test_confirmed_batch_arguments_returns_tool_argument_shape(self):
         operations = [{"id": "op", "type": "scene.inspect", "target": {}, "params": {}}]
 
         args = confirmed_batch_arguments(
@@ -53,7 +53,7 @@ class WorkflowTests(unittest.TestCase):
         )
 
         self.assertEqual(args["operations"], operations)
-        self.assertTrue(args["confirmed"])
+        self.assertNotIn("confirmed", args)
         self.assertEqual(args["confirmation_id"], "confirm_1")
         self.assertEqual(args["summary"], "Inspect scene")
         self.assertEqual(args["preview"], {})

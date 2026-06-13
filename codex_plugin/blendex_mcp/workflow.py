@@ -60,7 +60,6 @@ def confirmed_batch_arguments(
 ) -> Dict[str, Any]:
     return {
         "operations": operations,
-        "confirmed": True,
         "confirmation_id": confirmation_id,
         "summary": summary,
         "preview": preview or {},

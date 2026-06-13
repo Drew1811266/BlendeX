@@ -66,7 +66,12 @@ def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
         return any(_value_matches_schema(value, option) for option in schema["oneOf"])
     schema_type = schema.get("type")
     if schema_type == "string":
-        return isinstance(value, str)
+        if not isinstance(value, str):
+            return False
+        min_length = schema.get("minLength")
+        if min_length is not None and len(value) < min_length:
+            return False
+        return True
     if schema_type == "number":
         return _number_matches(value)
     if schema_type == "boolean":

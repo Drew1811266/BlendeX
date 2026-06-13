@@ -29,6 +29,10 @@ ALLOWED_OPERATIONS: Set[str] = {
 }
 
 MAX_JSON_VALUE_DEPTH = 100
+CONFIRMATION_RETRY_HINT = (
+    "Run a dry-run, show the confirmation summary, then execute with confirmed=true, "
+    "confirmation_id, and summary."
+)
 
 
 def _require_string(mapping, key: str, message: str) -> None:
@@ -121,7 +125,11 @@ def _require_operations(params) -> None:
 def _require_confirmation_string(params, key: str, message: str) -> None:
     value = params.get(key)
     if not isinstance(value, str) or not value:
-        raise BlendexError("CONFIRMATION_REQUIRED", message)
+        raise BlendexError(
+            "CONFIRMATION_REQUIRED",
+            message,
+            retry_hint=f"{CONFIRMATION_RETRY_HINT} Provide params.{key}.",
+        )
 
 
 def _require_no_params(params, message: str) -> None:
@@ -198,6 +206,7 @@ def validate_request(request: OperationRequest) -> None:
             raise BlendexError(
                 "CONFIRMATION_REQUIRED",
                 "execute_batch requires params.confirmed=true.",
+                retry_hint=CONFIRMATION_RETRY_HINT,
             )
         _require_confirmation_string(
             request.params,

@@ -301,6 +301,7 @@ class ValidationTests(unittest.TestCase):
                     validate_request(request)
 
                 self.assertEqual(raised.exception.code, "CONFIRMATION_REQUIRED")
+                self.assertIn("dry-run", raised.exception.retry_hint)
 
     def test_rejects_execute_batch_missing_or_empty_confirmation_id(self):
         base_params = {
@@ -325,6 +326,7 @@ class ValidationTests(unittest.TestCase):
                     validate_request(request)
 
                 self.assertEqual(raised.exception.code, "CONFIRMATION_REQUIRED")
+                self.assertIn("confirmation_id", raised.exception.retry_hint)
 
     def test_rejects_execute_batch_missing_or_empty_summary(self):
         base_params = {
@@ -349,6 +351,7 @@ class ValidationTests(unittest.TestCase):
                     validate_request(request)
 
                 self.assertEqual(raised.exception.code, "CONFIRMATION_REQUIRED")
+                self.assertIn("summary", raised.exception.retry_hint)
 
     def test_rejects_inspect_batch_without_batch_id(self):
         request = OperationRequest(
