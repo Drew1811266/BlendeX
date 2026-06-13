@@ -27,6 +27,28 @@ class RecordingExecutor:
         return {"ok": True}
 
 
+class ExistingNodeExecutor:
+    def __init__(self):
+        self.requests = []
+        self.node_labels = {"join": "Existing Label"}
+
+    def execute(self, request):
+        self.requests.append(request)
+        if request.id == "make_join":
+            raise BlendexError("NODE_TYPE_NOT_FOUND", "missing test node")
+        if request.type == "geometry_nodes.label_node":
+            self.node_labels[request.params["node_id"]] = request.params["label"]
+            return {"node_id": request.params["node_id"], "label": request.params["label"]}
+        return {"ok": True}
+
+
+class RuntimeFailingExecutor(RecordingExecutor):
+    def execute(self, request):
+        if request.id == "boom":
+            raise RuntimeError("Blender exploded")
+        return super().execute(request)
+
+
 class BatchExecutionTests(unittest.TestCase):
     def setUp(self):
         STATE.batch_history.records.clear()
@@ -100,6 +122,100 @@ class BatchExecutionTests(unittest.TestCase):
         self.assertEqual(result["operations"][1]["ok"], False)
         self.assertEqual(result["error"]["code"], "NODE_TYPE_NOT_FOUND")
         self.assertEqual(STATE.batch_history.latest().status, "partial")
+
+    def test_failed_create_does_not_fall_through_to_existing_node_matching_client_id(self):
+        executor = ExistingNodeExecutor()
+        result = execute_batch(
+            {
+                "target": {"object_id": "Cube"},
+                "params": {
+                    "operations": [
+                        {
+                            "id": "make_join",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_type": "GeometryNodeMissing", "client_id": "join"},
+                        },
+                        {
+                            "id": "label_join",
+                            "type": "geometry_nodes.label_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_id": "join", "label": "Should Not Mutate"},
+                        },
+                    ],
+                },
+            },
+            executor,
+        )
+
+        self.assertEqual(result["status"], "failed")
+        self.assertFalse(result["operations"][0]["ok"])
+        self.assertFalse(result["operations"][1]["ok"])
+        self.assertEqual(result["operations"][1]["error"]["code"], "EXECUTION_FAILED")
+        self.assertEqual(executor.node_labels["join"], "Existing Label")
+        self.assertEqual([request.id for request in executor.requests], ["make_join"])
+
+    def test_generic_executor_exception_records_failed_partial_batch(self):
+        executor = RuntimeFailingExecutor()
+        result = execute_batch(
+            {
+                "target": {"object_id": "Cube"},
+                "params": {
+                    "operations": [
+                        {
+                            "id": "good_node",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
+                        },
+                        {
+                            "id": "boom",
+                            "type": "geometry_nodes.label_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_id": "noise", "label": "Nope"},
+                        },
+                    ],
+                },
+            },
+            executor,
+        )
+
+        self.assertEqual(result["status"], "partial")
+        self.assertTrue(result["operations"][0]["ok"])
+        self.assertFalse(result["operations"][1]["ok"])
+        self.assertEqual(result["operations"][1]["error"]["code"], "EXECUTION_FAILED")
+        self.assertEqual(STATE.batch_history.latest().batch_id, result["batch_id"])
+        self.assertEqual(STATE.batch_history.latest().status, "partial")
+
+    def test_execute_batch_rejects_duplicate_client_ids_before_running_operations(self):
+        executor = RecordingExecutor()
+
+        with self.assertRaises(BlendexError) as raised:
+            execute_batch(
+                {
+                    "target": {"object_id": "Cube"},
+                    "params": {
+                        "operations": [
+                            {
+                                "id": "first",
+                                "type": "geometry_nodes.create_node",
+                                "target": {"object_id": "Cube"},
+                                "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
+                            },
+                            {
+                                "id": "second",
+                                "type": "geometry_nodes.create_node",
+                                "target": {"object_id": "Cube"},
+                                "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
+                            },
+                        ],
+                    },
+                },
+                executor,
+            )
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+        self.assertEqual(executor.requests, [])
 
 
 if __name__ == "__main__":

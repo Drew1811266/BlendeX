@@ -1,6 +1,6 @@
 import copy
 import secrets
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Set, Union
 
 from blendex_protocol.errors import BlendexError
 from blendex_protocol.messages import OperationRequest
@@ -29,12 +29,41 @@ def _request_from_operation(operation: Dict[str, Any], index: int) -> OperationR
     return request
 
 
-def _resolve_references(request: OperationRequest, client_nodes: Dict[str, str]) -> OperationRequest:
+def _declared_client_ids(operations: List[Dict[str, Any]]) -> Set[str]:
+    client_ids: Set[str] = set()
+    for index, operation in enumerate(operations):
+        if operation.get("type") != "geometry_nodes.create_node":
+            continue
+        params = operation.get("params", {})
+        client_id = params.get("client_id")
+        if not isinstance(client_id, str) or not client_id:
+            continue
+        if client_id in client_ids:
+            raise BlendexError(
+                "VALIDATION_FAILED",
+                f"Duplicate batch client_id at operation index {index}: {client_id}",
+            )
+        client_ids.add(client_id)
+    return client_ids
+
+
+def _resolve_references(
+    request: OperationRequest,
+    client_nodes: Dict[str, str],
+    declared_client_ids: Set[str],
+) -> OperationRequest:
     params = copy.deepcopy(request.params)
     for key in _REFERENCE_PARAM_KEYS:
         value = params.get(key)
-        if isinstance(value, str) and value in client_nodes:
+        if not isinstance(value, str):
+            continue
+        if value in client_nodes:
             params[key] = client_nodes[value]
+        elif value in declared_client_ids:
+            raise BlendexError(
+                "EXECUTION_FAILED",
+                f"Client node reference was not resolved: {value}",
+            )
     return OperationRequest(
         id=request.id,
         type=request.type,
@@ -88,6 +117,16 @@ def _batch_preview(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _operation_error_result(index: int, operation: Any, error: BlendexError) -> Dict[str, Any]:
+    return {
+        "index": index,
+        "id": operation.get("id", f"op_{index}") if isinstance(operation, dict) else f"op_{index}",
+        "type": operation.get("type", "") if isinstance(operation, dict) else "",
+        "ok": False,
+        "error": error.to_dict(),
+    }
+
+
 def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any) -> Dict[str, Any]:
     if executor is None:
         raise BlendexError("BLENDER_NOT_CONNECTED", "Batch execution requires a Blender executor.")
@@ -108,11 +147,12 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
     operations = request.params["operations"]
     results: List[Dict[str, Any]] = []
     client_nodes: Dict[str, str] = {}
+    declared_client_ids = _declared_client_ids(operations)
 
     for index, operation in enumerate(operations):
         try:
             operation_request = _request_from_operation(operation, index)
-            resolved_request = _resolve_references(operation_request, client_nodes)
+            resolved_request = _resolve_references(operation_request, client_nodes, declared_client_ids)
             result = executor.execute(resolved_request)
             if not isinstance(result, dict):
                 raise BlendexError("EXECUTION_FAILED", "Executor result must be an object.")
@@ -128,15 +168,10 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
                 }
             )
         except BlendexError as error:
-            results.append(
-                {
-                    "index": index,
-                    "id": operation.get("id", f"op_{index}") if isinstance(operation, dict) else f"op_{index}",
-                    "type": operation.get("type", "") if isinstance(operation, dict) else "",
-                    "ok": False,
-                    "error": error.to_dict(),
-                }
-            )
+            results.append(_operation_error_result(index, operation, error))
+        except Exception as error:
+            blendex_error = BlendexError("EXECUTION_FAILED", str(error) or error.__class__.__name__)
+            results.append(_operation_error_result(index, operation, blendex_error))
 
     status = _status_for(results)
     error = _first_error(results)
