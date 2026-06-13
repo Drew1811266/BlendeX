@@ -77,6 +77,33 @@ class RecipeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown recipe: missing"):
             registry.build("missing", {})
 
+    def test_registry_rejects_duplicate_recipe_ids(self):
+        registry = RecipeRegistry()
+        recipe = Recipe(
+            recipe_id="scatter.simple",
+            label="Simple Scatter",
+            category="scatter",
+            parameters=[],
+            builder=lambda params: [],
+            required_node_types=[],
+            example_prompts=[],
+        )
+        duplicate = Recipe(
+            recipe_id="scatter.simple",
+            label="Different Scatter",
+            category="scatter",
+            parameters=[],
+            builder=lambda params: [],
+            required_node_types=[],
+            example_prompts=[],
+        )
+
+        registry.register(recipe)
+
+        with self.assertRaisesRegex(ValueError, "Duplicate recipe id: scatter.simple"):
+            registry.register(duplicate)
+        self.assertEqual(registry.get("scatter.simple").label, "Simple Scatter")
+
     def test_number_and_string_validation_protects_recipe_params(self):
         density = RecipeParameter("density", "number", 0.5, 0.0, 1.0, "Density.")
         label = RecipeParameter("label", "string", "Oak", description="Label.")

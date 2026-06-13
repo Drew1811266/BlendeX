@@ -108,6 +108,8 @@ class RecipeRegistry:
     def register(self, recipe: Recipe) -> None:
         if not isinstance(recipe.recipe_id, str) or not recipe.recipe_id.strip():
             raise ValueError("Recipe id must be a non-empty string")
+        if recipe.recipe_id in self._recipes:
+            raise ValueError(f"Duplicate recipe id: {recipe.recipe_id}")
         self._recipes[recipe.recipe_id] = recipe
 
     def get(self, recipe_id: str) -> Recipe:
