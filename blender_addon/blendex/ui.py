@@ -34,6 +34,11 @@ class BLENDEX_PT_panel(_PanelBase):
         for log in STATE.recent_logs[:8]:
             icon = "CHECKMARK" if log.ok else "ERROR"
             layout.label(text=f"{log.operation}: {log.message}", icon=icon)
+        layout.separator()
+        layout.label(text="Recent Batches")
+        for batch in STATE.recent_batches(5):
+            icon = "CHECKMARK" if batch.status == "succeeded" else "ERROR"
+            layout.label(text=f"{batch.batch_id}: {batch.status}", icon=icon)
 
 
 def panel_classes():

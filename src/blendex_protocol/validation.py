@@ -21,6 +21,9 @@ ALLOWED_OPERATIONS: Set[str] = {
     "geometry_nodes.mark_ownership",
     "safety.validate_batch",
     "safety.dry_run",
+    "safety.execute_batch",
+    "safety.batch_history",
+    "safety.inspect_batch",
     "safety.undo_last_batch",
     "safety.check_ownership",
 }
@@ -113,6 +116,14 @@ def _require_operations(params) -> None:
         )
 
 
+def _require_optional_summary(params) -> None:
+    if "summary" not in params:
+        return
+    summary = params.get("summary")
+    if not isinstance(summary, str) or not summary:
+        raise BlendexError("VALIDATION_FAILED", "Batch summary must be a non-empty string.")
+
+
 def validate_request(request: OperationRequest) -> None:
     if request.type not in ALLOWED_OPERATIONS:
         raise BlendexError(
@@ -177,5 +188,9 @@ def validate_request(request: OperationRequest) -> None:
         _require_string(request.params, "label", "label_node requires params.label.")
     if request.type == "geometry_nodes.mark_ownership":
         _require_string(request.target, "object_id", "mark_ownership requires target.object_id.")
-    if request.type in {"safety.validate_batch", "safety.dry_run"}:
+    if request.type in {"safety.validate_batch", "safety.dry_run", "safety.execute_batch"}:
         _require_operations(request.params)
+    if request.type == "safety.execute_batch":
+        _require_optional_summary(request.params)
+    if request.type == "safety.inspect_batch":
+        _require_string(request.params, "batch_id", "inspect_batch requires params.batch_id.")

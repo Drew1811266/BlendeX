@@ -43,7 +43,10 @@ class CapabilityTests(unittest.TestCase):
                 "geometry_nodes.link_sockets",
                 "geometry_nodes.mark_ownership",
                 "geometry_nodes.set_socket_value",
+                "safety.batch_history",
                 "safety.dry_run",
+                "safety.execute_batch",
+                "safety.inspect_batch",
                 "safety.validate_batch",
                 "scene.create_carrier_mesh",
                 "scene.inspect",
@@ -60,6 +63,9 @@ class CapabilityTests(unittest.TestCase):
         self.assertIn("geometry_nodes.mark_ownership", result["supported_operations"])
         self.assertIn("safety.validate_batch", result["supported_operations"])
         self.assertIn("safety.dry_run", result["supported_operations"])
+        self.assertIn("safety.execute_batch", result["supported_operations"])
+        self.assertIn("safety.batch_history", result["supported_operations"])
+        self.assertIn("safety.inspect_batch", result["supported_operations"])
         self.assertNotIn("safety.undo_last_batch", result["supported_operations"])
 
     def test_scan_bpy_capabilities_filters_geometry_node_subclasses(self):

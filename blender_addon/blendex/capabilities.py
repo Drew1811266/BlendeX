@@ -23,6 +23,9 @@ IMPLEMENTED_OPERATIONS = {
     "geometry_nodes.mark_ownership",
     "safety.validate_batch",
     "safety.dry_run",
+    "safety.execute_batch",
+    "safety.batch_history",
+    "safety.inspect_batch",
 }
 
 _RUNTIME_NODE_PREFIXES = ("GeometryNode", "FunctionNode", "ShaderNode")

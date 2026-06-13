@@ -80,6 +80,29 @@ def _dry_run(request: OperationRequest, executor: Any) -> Dict[str, Any]:
     return dry_run_operations(request.params["operations"], executor)
 
 
+def _execute_batch(request: OperationRequest, executor: Any) -> Dict[str, Any]:
+    if executor is None:
+        raise BlendexError("BLENDER_NOT_CONNECTED", "Batch execution requires a Blender executor.")
+    from .batches import execute_batch
+
+    return execute_batch(request, executor)
+
+
+def _batch_history(request: OperationRequest) -> Dict[str, Any]:
+    limit = request.params.get("limit", 20)
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+        limit = 20
+    return {"batches": [record.to_dict() for record in STATE.recent_batches(limit)]}
+
+
+def _inspect_batch(request: OperationRequest) -> Dict[str, Any]:
+    batch_id = request.params["batch_id"]
+    record = STATE.batch_history.find(batch_id)
+    if record is None:
+        raise BlendexError("BATCH_NOT_FOUND", f"Batch not found: {batch_id}")
+    return record.to_dict()
+
+
 def dispatch_payload(
     payload: Any,
     executor: Any,
@@ -109,6 +132,12 @@ def dispatch_payload(
             result = _validate_batch(request, executor)
         elif request.type == "safety.dry_run":
             result = _dry_run(request, executor)
+        elif request.type == "safety.execute_batch":
+            result = _execute_batch(request, executor)
+        elif request.type == "safety.batch_history":
+            result = _batch_history(request)
+        elif request.type == "safety.inspect_batch":
+            result = _inspect_batch(request)
         elif executor is None:
             result = {"validated": True}
         else:

@@ -256,6 +256,52 @@ class ValidationTests(unittest.TestCase):
 
         validate_request(request)
 
+    def test_accepts_execute_batch_request_with_summary(self):
+        request = OperationRequest(
+            id="req_batch",
+            type="safety.execute_batch",
+            target={"object_id": "Cube"},
+            params={
+                "summary": "Create a small node graph",
+                "operations": [
+                    {
+                        "id": "op_1",
+                        "type": "geometry_nodes.create_modifier",
+                        "target": {"object_id": "Cube"},
+                        "params": {"modifier_id": "BlendeX Geometry"},
+                    }
+                ],
+            },
+        )
+
+        validate_request(request)
+
+    def test_rejects_execute_batch_empty_summary(self):
+        request = OperationRequest(
+            id="req_batch",
+            type="safety.execute_batch",
+            target={},
+            params={"summary": "", "operations": []},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
+    def test_rejects_inspect_batch_without_batch_id(self):
+        request = OperationRequest(
+            id="req_batch_inspect",
+            type="safety.inspect_batch",
+            target={},
+            params={},
+        )
+
+        with self.assertRaises(BlendexError) as raised:
+            validate_request(request)
+
+        self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
     def test_rejects_batch_validation_without_operations_array(self):
         request = OperationRequest(
             id="req_batch_bad",

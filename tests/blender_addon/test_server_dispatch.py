@@ -45,6 +45,7 @@ class CaptureSendSocket:
 class DispatchTests(unittest.TestCase):
     def setUp(self):
         STATE.recent_logs.clear()
+        STATE.batch_history.records.clear()
 
     def test_dispatch_rejects_unknown_operation_as_json_response(self):
         response = dispatch_payload(
@@ -244,6 +245,67 @@ class DispatchTests(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertEqual(response["result"]["status"], "valid")
         self.assertEqual(executor.validated, ["geometry_nodes.create_node"])
+
+    def test_dispatch_handles_execute_batch_and_history_inspection(self):
+        class BatchExecutor:
+            def execute(self, request):
+                return {"id": "Node.001"}
+
+        execute_response = dispatch_payload(
+            {
+                "id": "req_execute_batch",
+                "type": "safety.execute_batch",
+                "target": {"object_id": "Cube"},
+                "params": {
+                    "summary": "Create node",
+                    "operations": [
+                        {
+                            "id": "op_node",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_type": "GeometryNodeJoinGeometry", "client_id": "join"},
+                        }
+                    ],
+                },
+            },
+            executor=BatchExecutor(),
+        )
+
+        self.assertTrue(execute_response["ok"])
+        batch_id = execute_response["result"]["batch_id"]
+
+        history_response = dispatch_payload(
+            {"id": "req_history", "type": "safety.batch_history", "target": {}, "params": {}},
+            executor=None,
+        )
+        inspect_response = dispatch_payload(
+            {
+                "id": "req_inspect",
+                "type": "safety.inspect_batch",
+                "target": {},
+                "params": {"batch_id": batch_id},
+            },
+            executor=None,
+        )
+
+        self.assertTrue(history_response["ok"])
+        self.assertEqual(history_response["result"]["batches"][0]["batch_id"], batch_id)
+        self.assertTrue(inspect_response["ok"])
+        self.assertEqual(inspect_response["result"]["batch_id"], batch_id)
+
+    def test_dispatch_returns_batch_not_found_for_unknown_batch(self):
+        response = dispatch_payload(
+            {
+                "id": "req_missing_batch",
+                "type": "safety.inspect_batch",
+                "target": {},
+                "params": {"batch_id": "batch_missing"},
+            },
+            executor=None,
+        )
+
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "BATCH_NOT_FOUND")
 
 
 class MainThreadDispatchTests(unittest.TestCase):
