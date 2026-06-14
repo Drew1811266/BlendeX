@@ -34,12 +34,24 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(recipes_by_id["scatter.ground_points"]["label"], "Ground Point Distribution")
         self.assertEqual(recipes_by_id["scatter.grass"]["label"], "Simple Grass Scatter")
 
-    def test_stone_scatter_recipe_reflects_density_and_seed_in_labels(self):
-        operations = REGISTRY.build("scatter.stones", {"density": 37, "seed": 12})
-        labels = [operation["params"].get("label") for operation in operations]
+    def test_scatter_recipes_reflect_parameters_in_labels(self):
+        stone_operations = REGISTRY.build("scatter.stones", {"density": 37, "seed": 12})
+        stone_labels = [operation["params"].get("label") for operation in stone_operations]
 
-        self.assertIn("Stone Points density 37", labels)
-        self.assertIn("Stone Instances seed 12", labels)
+        self.assertIn("Stone Points density 37", stone_labels)
+        self.assertIn("Stone Instances seed 12", stone_labels)
+
+        ground_operations = REGISTRY.build("scatter.ground_points", {"density": 88, "seed": 34})
+        ground_labels = [operation["params"].get("label") for operation in ground_operations]
+
+        self.assertIn("Ground Points density 88", ground_labels)
+        self.assertIn("Ground Random seed 34", ground_labels)
+
+        grass_operations = REGISTRY.build("scatter.grass", {"density": 123, "scale": 2.5})
+        grass_labels = [operation["params"].get("label") for operation in grass_operations]
+
+        self.assertIn("Grass Points density 123", grass_labels)
+        self.assertIn("Grass Instances scale 2.5", grass_labels)
 
     def test_scatter_recipe_parameters_validate_bounds_and_types(self):
         invalid_cases = [
