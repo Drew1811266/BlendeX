@@ -37,7 +37,8 @@ Current branch/worktree:
 
 - Branch: `codex/blendex-v0-3-creative-workflow`
 - Worktree: `/Users/drewbot/project b/BlendeX/.worktrees/codex/blendex-v0-3-creative-workflow`
-- Latest committed task: Task 8 initial implementation at `7d0b8a0 feat: add BlendeX scattering recipes`
+- Current HEAD: `038ad72 chore: prepare BlendeX 0.30.0 early-user release`
+- Worktree status at pause: clean before this checkpoint update
 
 Completed and committed:
 
@@ -48,32 +49,32 @@ Completed and committed:
 - Task 5 / `0.25`: confirmation-first execution
 - Task 6 / `0.26`: recipe infrastructure
 - Task 7 / `0.27`: architecture recipes
-- Task 8 / `0.28`: scattering recipes, pending one runtime-compatibility fix before completion
+- Task 8 / `0.28`: scattering recipes
+- Task 9 / `0.29`: semi-open planner
+- Task 10 / `0.30`: early-user release hardening implementation
 
 Paused in progress:
 
-- Task 8 code-quality follow-up found that recipe batches beginning with `scene.create_carrier_mesh` could pass CodeX-side validation but fail during Blender-side confirmed batch execution because `GeometryNodesExecutor` does not implement that operation.
-- A focused fix is currently uncommitted in:
-  - `blender_addon/blendex/batches.py`
-  - `tests/blender_addon/test_batches.py`
-- The fix routes `scene.create_carrier_mesh` through `create_carrier_mesh(executor.context, name)` when the batch executor exposes a Blender context, then continues normal Geometry Nodes execution.
-- The added regression test confirms a single confirmed batch can create a carrier mesh, create a modifier on it, and create a Geometry Nodes node in that modifier.
+- Task 10 has passed its spec review but failed its final quality review.
+- Do not mark the v0.3 goal complete until the quality review items below are fixed, verified, and re-reviewed.
+- Active goal remains: build BlendeX v0.3 into an early-user-ready creative workflow where CodeX can plan, dry-run, confirm, execute, inspect, retry, and safely undo BlendeX-owned Geometry Nodes changes.
 
 Verification state:
 
-- Targeted command passed: `PYTHONPATH=src:. python3 -m unittest tests.blender_addon.test_batches tests.codex_plugin.test_recipes -v` (`30 tests OK`).
-- Full `./scripts/run_unit_tests.sh` was attempted in the sandbox and failed with socket `PermissionError` in lifecycle tests that bind `127.0.0.1`.
-- Escalated full-suite rerun was interrupted when work was paused, so full verification is incomplete.
-- `git diff --check` has not been run for the uncommitted Task 8 follow-up.
+- Passed: `PYTHONPATH=src:. python3 -m unittest tests.codex_plugin.test_version -v` (`6 tests OK`).
+- Passed: `git diff --check`.
+- Passed with expected local-Blender skip: `python3 scripts/run_blender_smoke.py` printed `SKIP: set BLENDER=/path/to/blender to run the Blender smoke test`.
+- Passed: `./scripts/run_unit_tests.sh` (`239 tests OK`).
+- Passed MCP stdio probe: initialize reports `0.30.0` and tools list includes `blendex_list_recipes`, `blendex_build_recipe_batch`, `blendex_plan_goal`, `blendex_execute_confirmed_batch`, `blendex_batch_history`, `blendex_inspect_batch`, and `blendex_undo_last_batch`.
 
 Recommended resume steps:
 
-1. Confirm no helper agent is still editing this worktree.
-2. Run `git diff --check`.
-3. Rerun `PYTHONPATH=src:. python3 -m unittest tests.blender_addon.test_batches tests.codex_plugin.test_recipes -v`.
-4. Rerun `./scripts/run_unit_tests.sh`; if sandbox socket permissions fail again, rerun with approved escalation.
-5. If verification passes, commit the two-file Task 8 follow-up, then run focused spec and quality review for Task 8 over `dc6b706..HEAD`.
-6. Continue with Task 9 / `0.29` semi-open planner.
+1. Fix `undo_last_batch()` so it does not report `undo_status="undone"` unless a reliable undo callback actually reverts scene state. The current issue is in `blender_addon/blendex/batches.py`.
+2. Update the Blender smoke test to inspect the Geometry Nodes tree after undo and assert the smoke-created batch node is gone. The current gap is in `tests/integration/blender_smoke.py`.
+3. Tighten `blendex_batch_history.limit` so MCP schema and Blender-side handling agree on positive integers. Update `codex_plugin/blendex_mcp/tools.py`, `codex_plugin/blendex_mcp/server.py`, and Blender-side validation/tests as needed.
+4. Rename the stale test `test_tool_names_include_v0_2_graph_kernel_tools` in `tests/codex_plugin/test_tools.py`.
+5. Re-run focused tests for undo, smoke, MCP argument validation, then run `./scripts/run_unit_tests.sh` and `git diff --check`.
+6. Run focused spec and quality re-review for Task 10 over the final branch diff before marking the v0.3 goal complete.
 
 ## Planned File Structure
 
