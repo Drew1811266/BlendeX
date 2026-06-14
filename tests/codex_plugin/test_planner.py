@@ -49,6 +49,20 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(result["mode"], "recipe")
         self.assertEqual(result["recipe_id"], "scatter.stones")
 
+    def test_planner_prefers_scatter_intent_over_architecture_context(self):
+        prompts = (
+            "scatter stones around a building",
+            "scatter rocks around a tower",
+            "scatter rocks across a facade panel",
+        )
+
+        for prompt in prompts:
+            with self.subTest(prompt=prompt):
+                result = plan_goal(prompt, capabilities={})
+
+                self.assertEqual(result["mode"], "recipe")
+                self.assertEqual(result["recipe_id"], "scatter.stones")
+
     def test_planner_uses_word_boundaries_for_broad_keywords(self):
         result = plan_goal("towering grass field", capabilities={})
 

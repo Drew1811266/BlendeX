@@ -15,7 +15,6 @@ _RECIPE_KEYWORDS = [
 
 _CATEGORY_HINTS = {
     "scatter.": ("scatter", "scattering", "distribute", "distribution"),
-    "architecture.": ("build", "building", "modular", "facade", "panel", "tower"),
 }
 
 
