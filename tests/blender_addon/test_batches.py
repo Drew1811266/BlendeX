@@ -4,7 +4,9 @@ from blendex_protocol.errors import BlendexError
 from blendex_protocol.messages import OperationRequest
 
 from blender_addon.blendex.batches import execute_batch, undo_last_batch
+from blender_addon.blendex.executor import GeometryNodesExecutor
 from blender_addon.blendex.state import STATE
+from tests.blender_addon.test_executor_fake import FakeContext, FakeObject
 
 
 class RecordingExecutor:
@@ -48,6 +50,26 @@ class RuntimeFailingExecutor(RecordingExecutor):
         if request.id == "boom":
             raise RuntimeError("Blender exploded")
         return super().execute(request)
+
+
+class CarrierBatchContext(FakeContext):
+    def __init__(self):
+        super().__init__()
+        self.created = []
+        self.selected_objects = []
+        self.object = None
+
+    def create_mesh_object(self, name):
+        obj = FakeObject(name)
+        self.objects[name] = obj
+        self.created.append(obj)
+        return obj
+
+    def select_object(self, obj):
+        self.selected_objects = [obj]
+
+    def set_active_object(self, obj):
+        self.object = obj
 
 
 def _confirmed_params(operations, summary="Confirmed test batch", confirmation_id="confirm_test", **extra):
@@ -104,6 +126,55 @@ class BatchExecutionTests(unittest.TestCase):
         self.assertEqual([entry["id"] for entry in result["operations"]], ["make_noise", "link_noise"])
         self.assertEqual(executor.requests[1].params["from_node"], "runtime_noise")
         self.assertEqual(result["operations"][1]["result"]["from_node"], "runtime_noise")
+        self.assertEqual(STATE.batch_history.latest().batch_id, result["batch_id"])
+
+    def test_execute_batch_creates_carrier_before_modifier_and_node_operations(self):
+        context = CarrierBatchContext()
+        executor = GeometryNodesExecutor(context)
+
+        result = execute_batch(
+            {
+                "target": {"object_id": "Recipe Carrier"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "create_carrier",
+                            "type": "scene.create_carrier_mesh",
+                            "target": {},
+                            "params": {"name": "Recipe Carrier"},
+                        },
+                        {
+                            "id": "create_modifier",
+                            "type": "geometry_nodes.create_modifier",
+                            "target": {"object_id": "Recipe Carrier"},
+                            "params": {"modifier_id": "Recipe Geometry"},
+                        },
+                        {
+                            "id": "create_join",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Recipe Carrier", "modifier_id": "Recipe Geometry"},
+                            "params": {
+                                "node_type": "GeometryNodeJoinGeometry",
+                                "client_id": "join",
+                                "label": "Join Geometry",
+                            },
+                        },
+                    ],
+                    summary="Create carrier recipe batch",
+                    confirmation_id="confirm_recipe_carrier",
+                ),
+            },
+            executor,
+        )
+
+        self.assertEqual(result["status"], "succeeded")
+        self.assertEqual([operation["ok"] for operation in result["operations"]], [True, True, True])
+        self.assertIn("Recipe Carrier", context.objects)
+        self.assertEqual(context.created[0].name, "Recipe Carrier")
+        self.assertEqual(context.object.name, "Recipe Carrier")
+        self.assertEqual(result["operations"][0]["result"]["object_id"], "Recipe Carrier")
+        self.assertEqual(result["operations"][1]["result"]["object_id"], "Recipe Carrier")
+        self.assertEqual(result["operations"][2]["result"]["node_type"], "GeometryNodeJoinGeometry")
         self.assertEqual(STATE.batch_history.latest().batch_id, result["batch_id"])
 
     def test_execute_batch_records_dry_run_and_actor_metadata(self):

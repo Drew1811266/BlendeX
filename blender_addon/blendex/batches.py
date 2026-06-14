@@ -7,6 +7,7 @@ from blendex_protocol.messages import OperationRequest
 from blendex_protocol.validation import validate_request
 
 from .history import BatchRecord
+from .scene import create_carrier_mesh
 from .state import STATE
 
 
@@ -104,6 +105,14 @@ def _request_payload(request: OperationRequest) -> Dict[str, Any]:
     return request.to_dict()
 
 
+def _execute_operation(request: OperationRequest, executor: Any) -> Dict[str, Any]:
+    if request.type == "scene.create_carrier_mesh":
+        context = getattr(executor, "context", None)
+        if context is not None:
+            return create_carrier_mesh(context, request.params.get("name", "BlendeX Carrier"))
+    return executor.execute(request)
+
+
 def _batch_preview(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "operations": [
@@ -167,7 +176,7 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
         try:
             operation_request = _request_from_operation(operation, index)
             resolved_request = _resolve_references(operation_request, client_nodes, declared_client_ids)
-            result = executor.execute(resolved_request)
+            result = _execute_operation(resolved_request, executor)
             if not isinstance(result, dict):
                 raise BlendexError("EXECUTION_FAILED", "Executor result must be an object.")
             _record_created_node(operation_request, result, client_nodes)
