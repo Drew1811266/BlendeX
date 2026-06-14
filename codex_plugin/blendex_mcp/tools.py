@@ -62,6 +62,19 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "blendex_plan_goal",
+        "description": "Plan a BlendeX procedural modeling goal using recipes or safe graph primitives.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "prompt": STRING_PROP,
+                "capabilities": {"type": "object"},
+            },
+            "required": ["prompt"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "blendex_create_node",
         "description": "Create a Geometry Nodes node on a target object and modifier.",
         "inputSchema": {
@@ -212,6 +225,16 @@ def tool_to_operation(name: str, arguments: Dict[str, Any], request_id: str) -> 
             "params": {
                 "recipe_id": arguments["recipe_id"],
                 "parameters": arguments.get("parameters", {}),
+            },
+        }
+    if name == "blendex_plan_goal":
+        return {
+            "id": request_id,
+            "type": "planner.plan_goal",
+            "target": {},
+            "params": {
+                "prompt": arguments["prompt"],
+                "capabilities": arguments.get("capabilities", {}),
             },
         }
     if name == "blendex_create_node":

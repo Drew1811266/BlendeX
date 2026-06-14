@@ -5,6 +5,7 @@ import uuid
 from typing import Any, Dict, Optional
 
 from .blender_client import BlenderClient
+from .planner import plan_goal
 from .recipes import REGISTRY
 from .tools import TOOL_DEFINITIONS, tool_to_operation
 from .version import VERSION
@@ -208,6 +209,18 @@ def _handle_local_recipe_operation(operation: Dict[str, Any]) -> Optional[Dict[s
     return None
 
 
+def _handle_local_planner_operation(operation: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if operation.get("type") != "planner.plan_goal":
+        return None
+    result = plan_goal(
+        operation["params"]["prompt"],
+        capabilities=operation["params"].get("capabilities"),
+    )
+    if result.get("mode") == "unsupported":
+        return _tool_result({"ok": False, "error": result["error"], "result": result})
+    return _tool_result({"ok": True, "result": result})
+
+
 def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[Dict[str, Any]]:
     message_id = _message_id(message)
     if not isinstance(message, dict):
@@ -248,6 +261,9 @@ def handle_message(message: Dict[str, Any], client: BlenderClient) -> Optional[D
         except (KeyError, TypeError) as error:
             return _invalid_params(message_id, f"Invalid params: {error}")
         local_result = _handle_local_recipe_operation(operation)
+        if local_result is not None:
+            return json_rpc_success(message_id, local_result)
+        local_result = _handle_local_planner_operation(operation)
         if local_result is not None:
             return json_rpc_success(message_id, local_result)
         try:

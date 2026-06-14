@@ -411,6 +411,69 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(response["error"]["code"], -32602)
         self.assertEqual(client.operations, [])
 
+    def test_plan_goal_is_handled_locally_without_blender_client(self):
+        client = FakeClient()
+
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 35,
+                "method": "tools/call",
+                "params": {
+                    "name": "blendex_plan_goal",
+                    "arguments": {"prompt": "create a modular grid tower"},
+                },
+            },
+            client,
+        )
+
+        self.assertEqual(response["id"], 35)
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["result"]["mode"], "recipe")
+        self.assertEqual(payload["result"]["recipe_id"], "architecture.grid_tower")
+        self.assertTrue(payload["result"]["operations"])
+        self.assertEqual(client.operations, [])
+
+    def test_plan_goal_unsupported_returns_tool_error(self):
+        client = FakeClient()
+
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 36,
+                "method": "tools/call",
+                "params": {
+                    "name": "blendex_plan_goal",
+                    "arguments": {"prompt": "make a photoreal cinematic character"},
+                },
+            },
+            client,
+        )
+
+        self.assertTrue(response["result"]["isError"])
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "PLANNER_UNSUPPORTED_REQUEST")
+        self.assertEqual(payload["result"]["mode"], "unsupported")
+        self.assertEqual(client.operations, [])
+
+    def test_plan_goal_rejects_invalid_prompt_before_local_handling(self):
+        client = FakeClient()
+
+        response = server.handle_message(
+            {
+                "jsonrpc": "2.0",
+                "id": 37,
+                "method": "tools/call",
+                "params": {"name": "blendex_plan_goal", "arguments": {"prompt": 3}},
+            },
+            client,
+        )
+
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(client.operations, [])
+
     def test_tools_call_rejects_non_finite_json_numbers(self):
         invalid_calls = [
             {"value": float("nan")},

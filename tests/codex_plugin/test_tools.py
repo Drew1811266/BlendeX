@@ -48,6 +48,7 @@ class ToolMappingTests(unittest.TestCase):
 
         self.assertIn("blendex_list_recipes", names)
         self.assertIn("blendex_build_recipe_batch", names)
+        self.assertIn("blendex_plan_goal", names)
 
     def test_recipe_tools_map_to_local_recipe_operations(self):
         self.assertEqual(
@@ -64,6 +65,19 @@ class ToolMappingTests(unittest.TestCase):
         self.assertEqual(operation["type"], "recipes.build_batch")
         self.assertEqual(operation["params"]["recipe_id"], "scatter.simple")
         self.assertEqual(operation["params"]["parameters"], {"count": 12})
+
+    def test_plan_goal_maps_to_local_planner_operation(self):
+        operation = tool_to_operation(
+            "blendex_plan_goal",
+            {"prompt": "scatter stones", "capabilities": {"node_types": {}}},
+            request_id="req_plan",
+        )
+
+        self.assertEqual(operation["id"], "req_plan")
+        self.assertEqual(operation["type"], "planner.plan_goal")
+        self.assertEqual(operation["target"], {})
+        self.assertEqual(operation["params"]["prompt"], "scatter stones")
+        self.assertEqual(operation["params"]["capabilities"], {"node_types": {}})
 
     def test_create_modifier_maps_to_structured_operation(self):
         operation = tool_to_operation(
