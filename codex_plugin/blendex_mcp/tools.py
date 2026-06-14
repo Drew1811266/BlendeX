@@ -203,6 +203,30 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "blendex_batch_history",
+        "description": "List recent BlendeX batch execution records.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"limit": NUMBER_PROP},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "blendex_inspect_batch",
+        "description": "Inspect a recorded BlendeX batch by id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"batch_id": NON_EMPTY_STRING_PROP},
+            "required": ["batch_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "blendex_undo_last_batch",
+        "description": "Undo the most recent safe BlendeX batch when available.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
 ]
 
 
@@ -341,5 +365,26 @@ def tool_to_operation(name: str, arguments: Dict[str, Any], request_id: str) -> 
                 "summary": arguments["summary"],
                 "preview": arguments.get("preview", {}),
             },
+        }
+    if name == "blendex_batch_history":
+        return {
+            "id": request_id,
+            "type": "safety.batch_history",
+            "target": {},
+            "params": {"limit": arguments["limit"]} if "limit" in arguments else {},
+        }
+    if name == "blendex_inspect_batch":
+        return {
+            "id": request_id,
+            "type": "safety.inspect_batch",
+            "target": {},
+            "params": {"batch_id": arguments["batch_id"]},
+        }
+    if name == "blendex_undo_last_batch":
+        return {
+            "id": request_id,
+            "type": "safety.undo_last_batch",
+            "target": {},
+            "params": {},
         }
     raise ValueError(f"Unknown BlendeX tool: {name}")

@@ -15,7 +15,7 @@ _ensure_source_tree_protocol_path()
 bl_info = {
     "name": "BlendeX",
     "author": "BlendeX Contributors",
-    "version": (0, 21, 0),
+    "version": (0, 30, 0),
     "blender": (4, 0, 0),
     "location": "View3D > Sidebar > BlendeX",
     "description": "CodeX bridge for structured Geometry Nodes operations",

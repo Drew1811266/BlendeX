@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "blender_addon"))
 
 import blendex
+from blendex.batches import execute_batch, undo_last_batch
 from blendex.executor import GeometryNodesExecutor
 from blendex_protocol.messages import OperationRequest
 
@@ -76,6 +77,34 @@ def main():
         assert set(created_nodes) == {"Join A", "Join B"}
         assert created_nodes["Join A"]["node_type"] == "GeometryNodeJoinGeometry"
         assert created_nodes["Join B"]["node_type"] == "GeometryNodeJoinGeometry"
+
+        batch = execute_batch(
+            {
+                "target": {"object_id": obj.name},
+                "params": {
+                    "confirmed": True,
+                    "confirmation_id": "smoke_confirmed_batch",
+                    "summary": "Smoke batch",
+                    "operations": [
+                        {
+                            "id": "smoke_batch_node",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": obj.name, "modifier_id": "BlendeX Geometry"},
+                            "params": {
+                                "node_type": "GeometryNodeJoinGeometry",
+                                "label": "Smoke Batch Join",
+                            },
+                        }
+                    ],
+                },
+            },
+            executor,
+        )
+        assert batch["status"] == "succeeded"
+        assert batch["operations"][0]["ok"] is True
+
+        undo = undo_last_batch()
+        assert undo["undo_status"] == "undone"
     finally:
         blendex.unregister()
 

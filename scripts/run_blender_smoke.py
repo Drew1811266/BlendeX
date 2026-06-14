@@ -13,7 +13,7 @@ def main() -> int:
 
     root = pathlib.Path(__file__).resolve().parents[1]
     script = root / "tests" / "integration" / "blender_smoke.py"
-    return subprocess.run([blender, "--background", "--python", str(script)]).returncode
+    return subprocess.run([blender, "--background", "--factory-startup", "--python", str(script)]).returncode
 
 
 if __name__ == "__main__":

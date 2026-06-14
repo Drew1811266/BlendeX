@@ -252,6 +252,56 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(response["error"]["code"], -32602)
                 self.assertEqual(client.operations, [])
 
+    def test_batch_history_tools_send_structured_operations(self):
+        calls = [
+            (
+                "blendex_batch_history",
+                {"limit": 2},
+                "safety.batch_history",
+                {"limit": 2},
+            ),
+            (
+                "blendex_inspect_batch",
+                {"batch_id": "batch_123"},
+                "safety.inspect_batch",
+                {"batch_id": "batch_123"},
+            ),
+            ("blendex_undo_last_batch", {}, "safety.undo_last_batch", {}),
+        ]
+
+        for name, arguments, operation_type, params in calls:
+            client = FakeClient(result={"ok": True, "result": {}})
+            with self.subTest(name=name):
+                response = server.handle_message(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 22,
+                        "method": "tools/call",
+                        "params": {"name": name, "arguments": arguments},
+                    },
+                    client,
+                )
+
+                self.assertNotIn("error", response)
+                self.assertEqual(client.operations[0]["type"], operation_type)
+                self.assertEqual(client.operations[0]["params"], params)
+
+    def test_batch_history_tools_validate_arguments(self):
+        invalid_calls = [
+            {"name": "blendex_batch_history", "arguments": {"limit": "many"}},
+            {"name": "blendex_inspect_batch", "arguments": {"batch_id": ""}},
+            {"name": "blendex_undo_last_batch", "arguments": {"unexpected": True}},
+        ]
+
+        for params in invalid_calls:
+            with self.subTest(params=params):
+                response = server.handle_message(
+                    {"jsonrpc": "2.0", "id": 23, "method": "tools/call", "params": params},
+                    FakeClient(),
+                )
+
+                self.assertEqual(response["error"]["code"], -32602)
+
     def test_list_recipes_is_handled_locally_without_blender_client(self):
         client = FakeClient()
 

@@ -40,6 +40,9 @@ class ToolMappingTests(unittest.TestCase):
             "blendex_validate_batch",
             "blendex_dry_run",
             "blendex_execute_confirmed_batch",
+            "blendex_batch_history",
+            "blendex_inspect_batch",
+            "blendex_undo_last_batch",
         ]:
             self.assertIn(name, names)
 
@@ -155,6 +158,26 @@ class ToolMappingTests(unittest.TestCase):
         self.assertEqual(operation["params"]["confirmation_id"], "confirm_1")
         self.assertEqual(operation["params"]["summary"], "Inspect scene")
         self.assertEqual(operation["params"]["preview"], preview)
+
+    def test_batch_history_tools_map_to_structured_operations(self):
+        history = tool_to_operation("blendex_batch_history", {"limit": 3}, request_id="req_history")
+
+        self.assertEqual(history["type"], "safety.batch_history")
+        self.assertEqual(history["params"], {"limit": 3})
+
+        inspect = tool_to_operation(
+            "blendex_inspect_batch",
+            {"batch_id": "batch_123"},
+            request_id="req_inspect_batch",
+        )
+
+        self.assertEqual(inspect["type"], "safety.inspect_batch")
+        self.assertEqual(inspect["params"], {"batch_id": "batch_123"})
+
+        undo = tool_to_operation("blendex_undo_last_batch", {}, request_id="req_undo")
+
+        self.assertEqual(undo["type"], "safety.undo_last_batch")
+        self.assertEqual(undo["params"], {})
 
     def test_inspect_scene_maps_to_structured_operation(self):
         operation = tool_to_operation("blendex_inspect_scene", {}, request_id="req_x")
