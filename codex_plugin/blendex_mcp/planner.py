@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict, Optional
 
 from .recipes import REGISTRY
@@ -12,13 +13,36 @@ _RECIPE_KEYWORDS = [
     ("scatter.grass", ("grass", "field", "lawn")),
 ]
 
+_CATEGORY_HINTS = {
+    "scatter.": ("scatter", "scattering", "distribute", "distribution"),
+    "architecture.": ("build", "building", "modular", "facade", "panel", "tower"),
+}
+
+
+def _has_keyword(prompt: str, keyword: str) -> bool:
+    pattern = r"(?<!\w)" + re.escape(keyword).replace(r"\ ", r"\s+") + r"(?!\w)"
+    return re.search(pattern, prompt) is not None
+
+
+def _category_bonus(prompt: str, recipe_id: str) -> int:
+    for prefix, hints in _CATEGORY_HINTS.items():
+        if recipe_id.startswith(prefix) and any(_has_keyword(prompt, hint) for hint in hints):
+            return 2
+    return 0
+
 
 def _match_recipe(prompt: str) -> Optional[str]:
     normalized = prompt.lower()
+    best_recipe_id = None
+    best_score = 0
     for recipe_id, keywords in _RECIPE_KEYWORDS:
-        if any(keyword in normalized for keyword in keywords):
-            return recipe_id
-    return None
+        score = sum(len(keyword.split()) for keyword in keywords if _has_keyword(normalized, keyword))
+        if score:
+            score += _category_bonus(normalized, recipe_id)
+        if score > best_score:
+            best_recipe_id = recipe_id
+            best_score = score
+    return best_recipe_id
 
 
 def plan_goal(prompt: str, capabilities: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

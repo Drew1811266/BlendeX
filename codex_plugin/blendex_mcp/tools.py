@@ -67,7 +67,7 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "prompt": STRING_PROP,
+                "prompt": NON_EMPTY_STRING_PROP,
                 "capabilities": {"type": "object"},
             },
             "required": ["prompt"],

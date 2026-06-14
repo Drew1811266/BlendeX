@@ -31,6 +31,30 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(result["mode"], "recipe")
         self.assertEqual(result["recipe_id"], "scatter.grass")
 
+    def test_planner_prefers_modular_building_recipe(self):
+        result = plan_goal("blockout a simple modular building", capabilities={})
+
+        self.assertEqual(result["mode"], "recipe")
+        self.assertEqual(result["recipe_id"], "architecture.modular_building")
+
+    def test_planner_prefers_ground_points_recipe(self):
+        result = plan_goal("create points on ground for layout", capabilities={})
+
+        self.assertEqual(result["mode"], "recipe")
+        self.assertEqual(result["recipe_id"], "scatter.ground_points")
+
+    def test_planner_prefers_scatter_intent_over_incidental_wall_keyword(self):
+        result = plan_goal("scatter rocks along a wall", capabilities={})
+
+        self.assertEqual(result["mode"], "recipe")
+        self.assertEqual(result["recipe_id"], "scatter.stones")
+
+    def test_planner_uses_word_boundaries_for_broad_keywords(self):
+        result = plan_goal("towering grass field", capabilities={})
+
+        self.assertEqual(result["mode"], "recipe")
+        self.assertEqual(result["recipe_id"], "scatter.grass")
+
     def test_planner_returns_unsupported_for_broad_request(self):
         result = plan_goal("make a photoreal cinematic character", capabilities={"node_types": {}})
 

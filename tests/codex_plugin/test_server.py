@@ -461,18 +461,22 @@ class ServerTests(unittest.TestCase):
     def test_plan_goal_rejects_invalid_prompt_before_local_handling(self):
         client = FakeClient()
 
-        response = server.handle_message(
-            {
-                "jsonrpc": "2.0",
-                "id": 37,
-                "method": "tools/call",
-                "params": {"name": "blendex_plan_goal", "arguments": {"prompt": 3}},
-            },
-            client,
-        )
+        invalid_arguments = ({"prompt": 3}, {"prompt": ""})
 
-        self.assertEqual(response["error"]["code"], -32602)
-        self.assertEqual(client.operations, [])
+        for arguments in invalid_arguments:
+            with self.subTest(arguments=arguments):
+                response = server.handle_message(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 37,
+                        "method": "tools/call",
+                        "params": {"name": "blendex_plan_goal", "arguments": arguments},
+                    },
+                    client,
+                )
+
+                self.assertEqual(response["error"]["code"], -32602)
+                self.assertEqual(client.operations, [])
 
     def test_tools_call_rejects_non_finite_json_numbers(self):
         invalid_calls = [
