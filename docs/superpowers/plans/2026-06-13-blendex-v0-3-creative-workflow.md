@@ -31,14 +31,14 @@ The plan is deliberately split by minor version:
 
 Do not skip minor versions. Each task should leave the repo testable and should be committed before moving to the next task.
 
-## Pause Checkpoint - 2026-06-14
+## Completion Checkpoint - 2026-06-14
 
 Current branch/worktree:
 
 - Branch: `codex/blendex-v0-3-creative-workflow`
 - Worktree: `/Users/drewbot/project b/BlendeX/.worktrees/codex/blendex-v0-3-creative-workflow`
-- Current HEAD: `038ad72 chore: prepare BlendeX 0.30.0 early-user release`
-- Worktree status at pause: clean before this checkpoint update
+- Current HEAD: `db95804 fix: make BlendeX batch undo truthful`
+- Worktree status at completion: clean before this checkpoint update
 
 Completed and committed:
 
@@ -53,28 +53,24 @@ Completed and committed:
 - Task 9 / `0.29`: semi-open planner
 - Task 10 / `0.30`: early-user release hardening implementation
 
-Paused in progress:
+Final quality follow-up:
 
-- Task 10 has passed its spec review but failed its final quality review.
-- Do not mark the v0.3 goal complete until the quality review items below are fixed, verified, and re-reviewed.
-- Active goal remains: build BlendeX v0.3 into an early-user-ready creative workflow where CodeX can plan, dry-run, confirm, execute, inspect, retry, and safely undo BlendeX-owned Geometry Nodes changes.
+- Task 10 final quality findings have been fixed and re-reviewed.
+- `undo_last_batch()` no longer reports `undo_status="undone"` unless the batch has a reliable per-batch undo callback that succeeds.
+- Reversible fake-runtime batches remove created scene state, including node-only batches and recipe-style carrier/modifier/node batches.
+- Partial batches and unavailable undo paths return `UNDO_UNAVAILABLE` and update batch history status/error.
+- `blendex_batch_history.limit` is consistently validated as a positive integer in MCP schema, MCP server validation, shared protocol validation, and Blender dispatch.
+- README and smoke coverage now describe and verify supported safe undo rather than universal undo.
 
 Verification state:
 
-- Passed: `PYTHONPATH=src:. python3 -m unittest tests.codex_plugin.test_version -v` (`6 tests OK`).
+- Passed: `PYTHONPATH=src:. python3 -m unittest tests.blender_addon.test_batches tests.blender_addon.test_server_dispatch.DispatchTests tests.codex_plugin.test_server tests.codex_plugin.test_tools tests.protocol.test_validation tests.codex_plugin.test_version -v` (`121 tests OK`).
 - Passed: `git diff --check`.
 - Passed with expected local-Blender skip: `python3 scripts/run_blender_smoke.py` printed `SKIP: set BLENDER=/path/to/blender to run the Blender smoke test`.
-- Passed: `./scripts/run_unit_tests.sh` (`239 tests OK`).
-- Passed MCP stdio probe: initialize reports `0.30.0` and tools list includes `blendex_list_recipes`, `blendex_build_recipe_batch`, `blendex_plan_goal`, `blendex_execute_confirmed_batch`, `blendex_batch_history`, `blendex_inspect_batch`, and `blendex_undo_last_batch`.
-
-Recommended resume steps:
-
-1. Fix `undo_last_batch()` so it does not report `undo_status="undone"` unless a reliable undo callback actually reverts scene state. The current issue is in `blender_addon/blendex/batches.py`.
-2. Update the Blender smoke test to inspect the Geometry Nodes tree after undo and assert the smoke-created batch node is gone. The current gap is in `tests/integration/blender_smoke.py`.
-3. Tighten `blendex_batch_history.limit` so MCP schema and Blender-side handling agree on positive integers. Update `codex_plugin/blendex_mcp/tools.py`, `codex_plugin/blendex_mcp/server.py`, and Blender-side validation/tests as needed.
-4. Rename the stale test `test_tool_names_include_v0_2_graph_kernel_tools` in `tests/codex_plugin/test_tools.py`.
-5. Re-run focused tests for undo, smoke, MCP argument validation, then run `./scripts/run_unit_tests.sh` and `git diff --check`.
-6. Run focused spec and quality re-review for Task 10 over the final branch diff before marking the v0.3 goal complete.
+- Passed: `./scripts/run_unit_tests.sh` (`246 tests OK`).
+- Passed MCP stdio probe: initialize reports `0.30.0`; tools list includes the v0.3 recipe, planner, confirmed execution, history, inspect, and undo tools; `blendex_batch_history.limit` schema is `{"type": "integer", "minimum": 1}`.
+- Task 10 spec re-review: pass, no findings.
+- Task 10 final code-quality re-review: ready to merge, no critical/important/minor issues.
 
 ## Planned File Structure
 
