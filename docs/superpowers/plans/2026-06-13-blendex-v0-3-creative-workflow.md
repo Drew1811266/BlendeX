@@ -31,6 +31,50 @@ The plan is deliberately split by minor version:
 
 Do not skip minor versions. Each task should leave the repo testable and should be committed before moving to the next task.
 
+## Pause Checkpoint - 2026-06-14
+
+Current branch/worktree:
+
+- Branch: `codex/blendex-v0-3-creative-workflow`
+- Worktree: `/Users/drewbot/project b/BlendeX/.worktrees/codex/blendex-v0-3-creative-workflow`
+- Latest committed task: Task 8 initial implementation at `7d0b8a0 feat: add BlendeX scattering recipes`
+
+Completed and committed:
+
+- Task 1 / `0.21`: version metadata and baseline hygiene
+- Task 2 / `0.22`: authenticated local session
+- Task 3 / `0.23`: batch history
+- Task 4 / `0.24`: undo support
+- Task 5 / `0.25`: confirmation-first execution
+- Task 6 / `0.26`: recipe infrastructure
+- Task 7 / `0.27`: architecture recipes
+- Task 8 / `0.28`: scattering recipes, pending one runtime-compatibility fix before completion
+
+Paused in progress:
+
+- Task 8 code-quality follow-up found that recipe batches beginning with `scene.create_carrier_mesh` could pass CodeX-side validation but fail during Blender-side confirmed batch execution because `GeometryNodesExecutor` does not implement that operation.
+- A focused fix is currently uncommitted in:
+  - `blender_addon/blendex/batches.py`
+  - `tests/blender_addon/test_batches.py`
+- The fix routes `scene.create_carrier_mesh` through `create_carrier_mesh(executor.context, name)` when the batch executor exposes a Blender context, then continues normal Geometry Nodes execution.
+- The added regression test confirms a single confirmed batch can create a carrier mesh, create a modifier on it, and create a Geometry Nodes node in that modifier.
+
+Verification state:
+
+- Targeted command passed: `PYTHONPATH=src:. python3 -m unittest tests.blender_addon.test_batches tests.codex_plugin.test_recipes -v` (`30 tests OK`).
+- Full `./scripts/run_unit_tests.sh` was attempted in the sandbox and failed with socket `PermissionError` in lifecycle tests that bind `127.0.0.1`.
+- Escalated full-suite rerun was interrupted when work was paused, so full verification is incomplete.
+- `git diff --check` has not been run for the uncommitted Task 8 follow-up.
+
+Recommended resume steps:
+
+1. Confirm no helper agent is still editing this worktree.
+2. Run `git diff --check`.
+3. Rerun `PYTHONPATH=src:. python3 -m unittest tests.blender_addon.test_batches tests.codex_plugin.test_recipes -v`.
+4. Rerun `./scripts/run_unit_tests.sh`; if sandbox socket permissions fail again, rerun with approved escalation.
+5. If verification passes, commit the two-file Task 8 follow-up, then run focused spec and quality review for Task 8 over `dc6b706..HEAD`.
+6. Continue with Task 9 / `0.29` semi-open planner.
+
 ## Planned File Structure
 
 - `codex_plugin/blendex_mcp/version.py`
