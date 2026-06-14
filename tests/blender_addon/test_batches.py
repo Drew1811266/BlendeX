@@ -177,6 +177,53 @@ class BatchExecutionTests(unittest.TestCase):
         self.assertEqual(result["operations"][2]["result"]["node_type"], "GeometryNodeJoinGeometry")
         self.assertEqual(STATE.batch_history.latest().batch_id, result["batch_id"])
 
+    def test_undo_last_batch_removes_recipe_carrier_created_by_batch(self):
+        context = CarrierBatchContext()
+        executor = GeometryNodesExecutor(context)
+
+        result = execute_batch(
+            {
+                "target": {"object_id": "Recipe Carrier"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "create_carrier",
+                            "type": "scene.create_carrier_mesh",
+                            "target": {},
+                            "params": {"name": "Recipe Carrier"},
+                        },
+                        {
+                            "id": "create_modifier",
+                            "type": "geometry_nodes.create_modifier",
+                            "target": {"object_id": "Recipe Carrier"},
+                            "params": {"modifier_id": "Recipe Geometry"},
+                        },
+                        {
+                            "id": "create_join",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Recipe Carrier", "modifier_id": "Recipe Geometry"},
+                            "params": {
+                                "node_type": "GeometryNodeJoinGeometry",
+                                "client_id": "join",
+                                "label": "Recipe Join",
+                            },
+                        },
+                    ],
+                    summary="Create carrier recipe batch",
+                    confirmation_id="confirm_recipe_carrier",
+                ),
+            },
+            executor,
+        )
+
+        self.assertEqual(result["status"], "succeeded")
+        self.assertIn("Recipe Carrier", context.objects)
+
+        undo_result = undo_last_batch()
+
+        self.assertEqual(undo_result["undo_status"], "undone")
+        self.assertNotIn("Recipe Carrier", context.objects)
+
     def test_execute_batch_records_dry_run_and_actor_metadata(self):
         executor = RecordingExecutor()
         result = execute_batch(
@@ -409,7 +456,57 @@ class BatchExecutionTests(unittest.TestCase):
         self.assertEqual(executor.requests, [])
 
     def test_undo_last_batch_marks_latest_batch_undone(self):
+        context = FakeContext()
+        executor = GeometryNodesExecutor(context)
         result = execute_batch(
+            {
+                "target": {"object_id": "Cube"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "good_node",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {
+                                "node_type": "GeometryNodeJoinGeometry",
+                                "client_id": "join",
+                                "label": "Batch Join",
+                            },
+                        }
+                    ],
+                ),
+            },
+            executor,
+        )
+
+        tree_before_undo = executor.execute(
+            OperationRequest(
+                id="inspect_before_undo",
+                type="geometry_nodes.inspect_tree",
+                target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                params={},
+            )
+        )
+        self.assertIn("Batch Join", {node["label"] for node in tree_before_undo["nodes"]})
+
+        undo_result = undo_last_batch()
+
+        self.assertEqual(undo_result["batch_id"], result["batch_id"])
+        self.assertEqual(undo_result["undo_status"], "undone")
+        self.assertIsNone(undo_result["undo_error"])
+        self.assertEqual(STATE.batch_history.latest().undo_status, "undone")
+        tree_after_undo = executor.execute(
+            OperationRequest(
+                id="inspect_after_undo",
+                type="geometry_nodes.inspect_tree",
+                target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                params={},
+            )
+        )
+        self.assertNotIn("Batch Join", {node["label"] for node in tree_after_undo["nodes"]})
+
+    def test_undo_last_batch_without_reliable_undo_marks_unavailable(self):
+        execute_batch(
             {
                 "target": {"object_id": "Cube"},
                 "params": _confirmed_params(
@@ -426,12 +523,79 @@ class BatchExecutionTests(unittest.TestCase):
             RecordingExecutor(),
         )
 
-        undo_result = undo_last_batch()
+        with self.assertRaises(BlendexError) as raised:
+            undo_last_batch()
 
-        self.assertEqual(undo_result["batch_id"], result["batch_id"])
-        self.assertEqual(undo_result["undo_status"], "undone")
-        self.assertIsNone(undo_result["undo_error"])
-        self.assertEqual(STATE.batch_history.latest().undo_status, "undone")
+        latest = STATE.batch_history.latest()
+        self.assertEqual(raised.exception.code, "UNDO_UNAVAILABLE")
+        self.assertEqual(latest.undo_status, "unavailable")
+        self.assertEqual(latest.undo_error["code"], "UNDO_UNAVAILABLE")
+
+    def test_undo_last_batch_ignores_global_callback_for_unavailable_batch(self):
+        execute_batch(
+            {
+                "target": {"object_id": "Cube"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "good_node",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube"},
+                            "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
+                        }
+                    ],
+                ),
+            },
+            RecordingExecutor(),
+        )
+        callback_batches = []
+        STATE.undo_callback = callback_batches.append
+
+        with self.assertRaises(BlendexError) as raised:
+            undo_last_batch()
+
+        latest = STATE.batch_history.latest()
+        self.assertEqual(raised.exception.code, "UNDO_UNAVAILABLE")
+        self.assertEqual(callback_batches, [])
+        self.assertEqual(latest.undo_status, "unavailable")
+
+    def test_automatic_undo_is_unavailable_for_partial_batches(self):
+        context = FakeContext()
+        executor = GeometryNodesExecutor(context)
+        result = execute_batch(
+            {
+                "target": {"object_id": "Cube"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "good_node",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {
+                                "node_type": "GeometryNodeJoinGeometry",
+                                "client_id": "join",
+                                "label": "Partial Batch Join",
+                            },
+                        },
+                        {
+                            "id": "bad_label",
+                            "type": "geometry_nodes.label_node",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {"node_id": "missing", "label": "Nope"},
+                        },
+                    ],
+                ),
+            },
+            executor,
+        )
+
+        self.assertEqual(result["status"], "partial")
+        with self.assertRaises(BlendexError) as raised:
+            undo_last_batch()
+
+        latest = STATE.batch_history.latest()
+        self.assertEqual(raised.exception.code, "UNDO_UNAVAILABLE")
+        self.assertEqual(latest.undo_status, "unavailable")
 
     def test_undo_last_batch_raises_when_history_is_empty(self):
         with self.assertRaises(BlendexError) as raised:
@@ -508,7 +672,7 @@ class BatchExecutionTests(unittest.TestCase):
             RecordingExecutor(),
         )
         callback_batches = []
-        STATE.undo_callback = callback_batches.append
+        STATE.batch_history.latest().undo_callback = callback_batches.append
 
         undo_result = undo_last_batch()
 
@@ -536,7 +700,7 @@ class BatchExecutionTests(unittest.TestCase):
         def fail_undo(batch):
             raise BlendexError("EXECUTION_FAILED", "undo callback failed")
 
-        STATE.undo_callback = fail_undo
+        STATE.batch_history.latest().undo_callback = fail_undo
 
         with self.assertRaises(BlendexError) as raised:
             undo_last_batch()
@@ -567,7 +731,7 @@ class BatchExecutionTests(unittest.TestCase):
         def fail_undo(batch):
             raise RuntimeError("native undo failed")
 
-        STATE.undo_callback = fail_undo
+        STATE.batch_history.latest().undo_callback = fail_undo
 
         with self.assertRaises(BlendexError) as raised:
             undo_last_batch()

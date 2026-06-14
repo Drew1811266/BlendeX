@@ -137,6 +137,14 @@ def _require_no_params(params, message: str) -> None:
         raise BlendexError("VALIDATION_FAILED", message)
 
 
+def _require_positive_integer(mapping, key: str, message: str) -> None:
+    if key not in mapping:
+        return
+    value = mapping.get(key)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0 or value.bit_length() > 53:
+        raise BlendexError("VALIDATION_FAILED", message)
+
+
 def validate_request(request: OperationRequest) -> None:
     if request.type not in ALLOWED_OPERATIONS:
         raise BlendexError(
@@ -223,5 +231,11 @@ def validate_request(request: OperationRequest) -> None:
         _require_operations(request.params)
     if request.type == "safety.inspect_batch":
         _require_string(request.params, "batch_id", "inspect_batch requires params.batch_id.")
+    if request.type == "safety.batch_history":
+        _require_positive_integer(
+            request.params,
+            "limit",
+            "batch_history params.limit must be a positive integer.",
+        )
     if request.type == "safety.undo_last_batch":
         _require_no_params(request.params, "undo_last_batch does not accept params.")

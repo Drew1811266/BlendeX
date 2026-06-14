@@ -75,7 +75,9 @@ def _value_matches_schema(value: Any, schema: Dict[str, Any]) -> bool:
             return False
         return True
     if schema_type == "number":
-        return _number_matches(value)
+        return _number_matches(value, schema)
+    if schema_type == "integer":
+        return _integer_matches(value, schema)
     if schema_type == "boolean":
         return isinstance(value, bool)
     if schema_type == "null":
@@ -154,14 +156,42 @@ def _json_value_matches(value: Any, depth: int = 0) -> bool:
     return False
 
 
-def _number_matches(value: Any) -> bool:
+def _number_matches(value: Any, schema: Optional[Dict[str, Any]] = None) -> bool:
     if isinstance(value, bool):
         return False
     if isinstance(value, int):
-        return value.bit_length() <= 53
-    if isinstance(value, float):
-        return math.isfinite(value)
-    return False
+        matches = value.bit_length() <= 53
+    elif isinstance(value, float):
+        matches = math.isfinite(value)
+    else:
+        return False
+    if not matches:
+        return False
+    if schema is None:
+        return True
+    minimum = schema.get("minimum")
+    if minimum is not None and value < minimum:
+        return False
+    maximum = schema.get("maximum")
+    if maximum is not None and value > maximum:
+        return False
+    return True
+
+
+def _integer_matches(value: Any, schema: Optional[Dict[str, Any]] = None) -> bool:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return False
+    if value.bit_length() > 53:
+        return False
+    if schema is None:
+        return True
+    minimum = schema.get("minimum")
+    if minimum is not None and value < minimum:
+        return False
+    maximum = schema.get("maximum")
+    if maximum is not None and value > maximum:
+        return False
+    return True
 
 
 def _validate_tool_arguments(name: str, arguments: Dict[str, Any]) -> Optional[str]:

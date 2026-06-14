@@ -105,6 +105,17 @@ def main():
 
         undo = undo_last_batch()
         assert undo["undo_status"] == "undone"
+
+        tree_after_undo = executor.execute(
+            OperationRequest(
+                id="smoke_tree_after_undo",
+                type="geometry_nodes.inspect_tree",
+                target={"object_id": obj.name, "modifier_id": "BlendeX Geometry"},
+                params={},
+            )
+        )
+        labels_after_undo = {node.get("label") for node in tree_after_undo["nodes"]}
+        assert "Smoke Batch Join" not in labels_after_undo
     finally:
         blendex.unregister()
 

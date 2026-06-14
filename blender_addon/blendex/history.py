@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 import math
 from time import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 
 def _json_safe(value: Any) -> Any:
@@ -32,6 +32,7 @@ class BatchRecord:
     error: Optional[Dict[str, Any]] = None
     undo_status: str = "not_requested"
     undo_error: Optional[Dict[str, Any]] = None
+    undo_callback: Optional[Callable[["BatchRecord"], None]] = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> Dict[str, Any]:
         return {

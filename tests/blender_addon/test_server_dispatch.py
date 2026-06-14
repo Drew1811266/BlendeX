@@ -7,7 +7,9 @@ import types
 import unittest
 
 from blendex_protocol.errors import BlendexError
+from blendex_protocol.messages import OperationRequest
 
+from blender_addon.blendex.executor import GeometryNodesExecutor
 from blender_addon.blendex import server
 from blender_addon.blendex.server import (
     _read_http_headers,
@@ -20,6 +22,7 @@ from blender_addon.blendex.server import (
     dispatch_payload,
 )
 from blender_addon.blendex.state import STATE
+from tests.blender_addon.test_executor_fake import FakeContext
 
 
 class FakeSocket:
@@ -306,10 +309,24 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(inspect_response["result"]["dry_run"], True)
         self.assertEqual(inspect_response["result"]["actor"], "codex")
 
+    def test_dispatch_rejects_invalid_batch_history_limits(self):
+        for limit in (0, -1, 2.5):
+            with self.subTest(limit=limit):
+                response = dispatch_payload(
+                    {
+                        "id": "req_history_bad_limit",
+                        "type": "safety.batch_history",
+                        "target": {},
+                        "params": {"limit": limit},
+                    },
+                    executor=None,
+                )
+
+                self.assertFalse(response["ok"])
+                self.assertEqual(response["error"]["code"], "VALIDATION_FAILED")
+
     def test_dispatch_handles_undo_last_batch(self):
-        class BatchExecutor:
-            def execute(self, request):
-                return {"id": "Node.001"}
+        executor = GeometryNodesExecutor(FakeContext())
 
         execute_response = dispatch_payload(
             {
@@ -324,13 +341,17 @@ class DispatchTests(unittest.TestCase):
                         {
                             "id": "op_node",
                             "type": "geometry_nodes.create_node",
-                            "target": {"object_id": "Cube"},
-                            "params": {"node_type": "GeometryNodeJoinGeometry", "client_id": "join"},
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {
+                                "node_type": "GeometryNodeJoinGeometry",
+                                "client_id": "join",
+                                "label": "Undo Dispatch Join",
+                            },
                         }
                     ],
                 },
             },
-            executor=BatchExecutor(),
+            executor=executor,
         )
         batch_id = execute_response["result"]["batch_id"]
 
@@ -342,6 +363,15 @@ class DispatchTests(unittest.TestCase):
         self.assertTrue(undo_response["ok"])
         self.assertEqual(undo_response["result"]["batch_id"], batch_id)
         self.assertEqual(undo_response["result"]["undo_status"], "undone")
+        tree = executor.execute(
+            OperationRequest(
+                id="inspect_after_dispatch_undo",
+                type="geometry_nodes.inspect_tree",
+                target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                params={},
+            )
+        )
+        self.assertNotIn("Undo Dispatch Join", {node["label"] for node in tree["nodes"]})
 
     def test_dispatch_returns_undo_unavailable_when_history_is_empty(self):
         response = dispatch_payload(

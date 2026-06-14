@@ -27,7 +27,7 @@ class ToolMappingTests(unittest.TestCase):
         self.assertEqual(operation["target"]["object_id"], "Cube")
         self.assertEqual(operation["params"]["node_type"], "GeometryNodeJoinGeometry")
 
-    def test_tool_names_include_v0_2_graph_kernel_tools(self):
+    def test_tool_names_include_v0_3_workflow_tools(self):
         names = tool_names()
 
         for name in [

@@ -366,6 +366,31 @@ class ValidationTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
 
+    def test_accepts_batch_history_with_positive_integer_limit(self):
+        request = OperationRequest(
+            id="req_batch_history",
+            type="safety.batch_history",
+            target={},
+            params={"limit": 3},
+        )
+
+        validate_request(request)
+
+    def test_rejects_batch_history_with_invalid_limit(self):
+        for limit in (0, -1, 2.5, True):
+            with self.subTest(limit=limit):
+                request = OperationRequest(
+                    id="req_batch_history_bad",
+                    type="safety.batch_history",
+                    target={},
+                    params={"limit": limit},
+                )
+
+                with self.assertRaises(BlendexError) as raised:
+                    validate_request(request)
+
+                self.assertEqual(raised.exception.code, "VALIDATION_FAILED")
+
     def test_accepts_undo_last_batch_without_params(self):
         request = OperationRequest(
             id="req_undo",

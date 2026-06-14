@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 STRING_PROP = {"type": "string"}
 NON_EMPTY_STRING_PROP = {"type": "string", "minLength": 1}
 NUMBER_PROP = {"type": "number"}
+POSITIVE_INTEGER_PROP = {"type": "integer", "minimum": 1}
 PARAMETERS_OBJECT_PROP = {"type": "object"}
 JSON_VALUE_PROP = {
     "oneOf": [
@@ -208,7 +209,7 @@ TOOL_DEFINITIONS: List[Dict[str, Any]] = [
         "description": "List recent BlendeX batch execution records.",
         "inputSchema": {
             "type": "object",
-            "properties": {"limit": NUMBER_PROP},
+            "properties": {"limit": POSITIVE_INTEGER_PROP},
             "additionalProperties": False,
         },
     },

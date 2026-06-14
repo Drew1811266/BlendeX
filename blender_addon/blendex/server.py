@@ -97,7 +97,7 @@ def _undo_last_batch() -> Dict[str, Any]:
 def _batch_history(request: OperationRequest) -> Dict[str, Any]:
     limit = request.params.get("limit", 20)
     if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
-        limit = 20
+        raise BlendexError("VALIDATION_FAILED", "batch_history params.limit must be a positive integer.")
     return {"batches": [record.to_dict() for record in STATE.recent_batches(limit)]}
 
 

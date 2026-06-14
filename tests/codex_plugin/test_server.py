@@ -289,6 +289,9 @@ class ServerTests(unittest.TestCase):
     def test_batch_history_tools_validate_arguments(self):
         invalid_calls = [
             {"name": "blendex_batch_history", "arguments": {"limit": "many"}},
+            {"name": "blendex_batch_history", "arguments": {"limit": 0}},
+            {"name": "blendex_batch_history", "arguments": {"limit": -1}},
+            {"name": "blendex_batch_history", "arguments": {"limit": 2.5}},
             {"name": "blendex_inspect_batch", "arguments": {"batch_id": ""}},
             {"name": "blendex_undo_last_batch", "arguments": {"unexpected": True}},
         ]
