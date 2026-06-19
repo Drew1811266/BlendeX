@@ -3,6 +3,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
+from .graph_recipe import GraphLinkSpec, GraphNodeSpec, GraphRecipeBatch, GraphSocketValueSpec
+
 
 RecipeBuilder = Callable[[Dict[str, Any]], List[Dict[str, Any]]]
 
@@ -125,206 +127,127 @@ class RecipeRegistry:
         return self.get(recipe_id).build(params)
 
 
-def _carrier(name: str) -> Dict[str, Any]:
-    return {
-        "id": f"create_{name.lower().replace(' ', '_')}",
-        "type": "scene.create_carrier_mesh",
-        "target": {},
-        "params": {"name": name},
-    }
-
-
-def _modifier(
-    object_id: str = "BlendeX Carrier",
-    modifier_id: str = "BlendeX Geometry",
-) -> Dict[str, Any]:
-    return {
-        "id": "create_modifier",
-        "type": "geometry_nodes.create_modifier",
-        "target": {"object_id": object_id},
-        "params": {"modifier_id": modifier_id},
-    }
-
-
-def _node(
-    op_id: str,
-    object_id: str,
-    client_id: str,
-    node_type: str,
-    label: str,
-    location: List[float],
-) -> Dict[str, Any]:
-    return {
-        "id": op_id,
-        "type": "geometry_nodes.create_node",
-        "target": {"object_id": object_id, "modifier_id": "BlendeX Geometry"},
-        "params": {
-            "node_type": node_type,
-            "label": label,
-            "client_id": client_id,
-            "location": location,
-        },
-    }
+def _graph_operations(
+    object_name: str,
+    nodes: List[GraphNodeSpec],
+    socket_values: List[GraphSocketValueSpec],
+    links: List[GraphLinkSpec],
+) -> List[Dict[str, Any]]:
+    return GraphRecipeBatch(
+        object_name=object_name,
+        nodes=nodes,
+        socket_values=socket_values,
+        links=links,
+    ).to_operations()
 
 
 def _grid_tower(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Grid Tower"
-    return [
-        _carrier(object_id),
-        _modifier(object_id),
-        _node(
-            "grid_join",
-            object_id,
-            "grid_join",
-            "GeometryNodeJoinGeometry",
-            f"Grid Tower {params['levels']}x{params['columns']}",
-            [0, 0],
-        ),
-        _node(
-            "grid_transform",
-            object_id,
-            "grid_transform",
-            "GeometryNodeTransform",
-            "Module Transform",
-            [220, 0],
-        ),
-    ]
+    return _graph_operations(
+        object_id,
+        nodes=[
+            GraphNodeSpec("grid_join", "GeometryNodeJoinGeometry", f"Grid Tower {params['levels']}x{params['columns']}", [0, 0]),
+            GraphNodeSpec("grid_transform", "GeometryNodeTransform", "Module Transform", [220, 0]),
+        ],
+        socket_values=[
+            GraphSocketValueSpec("grid_transform", "Scale", [params["columns"], params["columns"], params["levels"]]),
+        ],
+        links=[
+            GraphLinkSpec("grid_transform", "Geometry", "grid_join", "Geometry"),
+        ],
+    )
 
 
 def _wall_panel(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Wall Panel"
-    return [
-        _carrier(object_id),
-        _modifier(object_id),
-        _node(
-            "wall_join",
-            object_id,
-            "wall_join",
-            "GeometryNodeJoinGeometry",
-            f"Wall Panel {params['segments']} segments",
-            [0, 0],
-        ),
-        _node(
-            "wall_transform",
-            object_id,
-            "wall_transform",
-            "GeometryNodeTransform",
-            "Panel Transform",
-            [220, 0],
-        ),
-    ]
+    return _graph_operations(
+        object_id,
+        nodes=[
+            GraphNodeSpec("wall_join", "GeometryNodeJoinGeometry", f"Wall Panel {params['segments']} segments", [0, 0]),
+            GraphNodeSpec("wall_transform", "GeometryNodeTransform", "Panel Transform", [220, 0]),
+        ],
+        socket_values=[
+            GraphSocketValueSpec("wall_transform", "Scale", [params["segments"], 1, 1]),
+        ],
+        links=[
+            GraphLinkSpec("wall_transform", "Geometry", "wall_join", "Geometry"),
+        ],
+    )
 
 
 def _modular_building(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Modular Building"
-    return [
-        _carrier(object_id),
-        _modifier(object_id),
-        _node(
-            "building_join",
-            object_id,
-            "building_join",
-            "GeometryNodeJoinGeometry",
-            f"Building {params['floors']} floors",
-            [0, 0],
-        ),
-        _node(
-            "building_set_material",
-            object_id,
-            "building_material",
-            "GeometryNodeSetMaterial",
-            "Material Zones",
-            [220, -180],
-        ),
-    ]
+    return _graph_operations(
+        object_id,
+        nodes=[
+            GraphNodeSpec("building_join", "GeometryNodeJoinGeometry", f"Building {params['floors']} floors", [0, 0]),
+            GraphNodeSpec("building_material", "GeometryNodeSetMaterial", "Material Zones", [220, -180]),
+        ],
+        socket_values=[
+            GraphSocketValueSpec("building_material", "Selection", True),
+        ],
+        links=[
+            GraphLinkSpec("building_material", "Geometry", "building_join", "Geometry"),
+        ],
+    )
 
 
 def _stone_scatter(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Stone Scatter"
-    return [
-        _carrier(object_id),
-        _modifier(object_id),
-        _node(
-            "scatter_points",
-            object_id,
-            "scatter_points",
-            "GeometryNodeDistributePointsOnFaces",
-            f"Stone Points density {params['density']}",
-            [0, 0],
-        ),
-        _node(
-            "scatter_instances",
-            object_id,
-            "scatter_instances",
-            "GeometryNodeInstanceOnPoints",
-            f"Stone Instances seed {params['seed']}",
-            [220, 0],
-        ),
-        _node(
-            "scatter_realize",
-            object_id,
-            "scatter_realize",
-            "GeometryNodeRealizeInstances",
-            "Realize Stone Instances",
-            [440, 0],
-        ),
-    ]
+    return _graph_operations(
+        object_id,
+        nodes=[
+            GraphNodeSpec("scatter_points", "GeometryNodeDistributePointsOnFaces", f"Stone Points density {params['density']}", [0, 0]),
+            GraphNodeSpec("scatter_instances", "GeometryNodeInstanceOnPoints", f"Stone Instances seed {params['seed']}", [220, 0]),
+            GraphNodeSpec("scatter_realize", "GeometryNodeRealizeInstances", "Realize Stone Instances", [440, 0]),
+        ],
+        socket_values=[
+            GraphSocketValueSpec("scatter_points", "Density", params["density"]),
+            GraphSocketValueSpec("scatter_instances", "Seed", params["seed"]),
+        ],
+        links=[
+            GraphLinkSpec("scatter_points", "Points", "scatter_instances", "Points"),
+            GraphLinkSpec("scatter_instances", "Instances", "scatter_realize", "Geometry"),
+        ],
+    )
 
 
 def _ground_points(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Ground Points"
-    return [
-        _carrier(object_id),
-        _modifier(object_id),
-        _node(
-            "ground_points",
-            object_id,
-            "ground_points",
-            "GeometryNodeDistributePointsOnFaces",
-            f"Ground Points density {params['density']}",
-            [0, 0],
-        ),
-        _node(
-            "ground_random",
-            object_id,
-            "ground_random",
-            "FunctionNodeRandomValue",
-            f"Ground Random seed {params['seed']}",
-            [220, 0],
-        ),
-    ]
+    return _graph_operations(
+        object_id,
+        nodes=[
+            GraphNodeSpec("ground_points", "GeometryNodeDistributePointsOnFaces", f"Ground Points density {params['density']}", [0, 0]),
+            GraphNodeSpec("ground_random", "FunctionNodeRandomValue", f"Ground Random seed {params['seed']}", [220, 0]),
+        ],
+        socket_values=[
+            GraphSocketValueSpec("ground_points", "Density", params["density"]),
+            GraphSocketValueSpec("ground_random", "Seed", params["seed"]),
+        ],
+        links=[
+            GraphLinkSpec("ground_random", "Value", "ground_points", "Density"),
+        ],
+    )
 
 
 def _grass_scatter(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Grass Scatter"
-    return [
-        _carrier(object_id),
-        _modifier(object_id),
-        _node(
-            "grass_points",
-            object_id,
-            "grass_points",
-            "GeometryNodeDistributePointsOnFaces",
-            f"Grass Points density {params['density']}",
-            [0, 0],
-        ),
-        _node(
-            "grass_instances",
-            object_id,
-            "grass_instances",
-            "GeometryNodeInstanceOnPoints",
-            f"Grass Instances scale {params['scale']}",
-            [220, 0],
-        ),
-        _node(
-            "grass_realize",
-            object_id,
-            "grass_realize",
-            "GeometryNodeRealizeInstances",
-            "Realize Grass Instances",
-            [440, 0],
-        ),
-    ]
+    return _graph_operations(
+        object_id,
+        nodes=[
+            GraphNodeSpec("grass_points", "GeometryNodeDistributePointsOnFaces", f"Grass Points density {params['density']}", [0, 0]),
+            GraphNodeSpec("grass_instances", "GeometryNodeInstanceOnPoints", f"Grass Instances scale {params['scale']}", [220, 0]),
+            GraphNodeSpec("grass_realize", "GeometryNodeRealizeInstances", "Realize Grass Instances", [440, 0]),
+        ],
+        socket_values=[
+            GraphSocketValueSpec("grass_points", "Density", params["density"]),
+            GraphSocketValueSpec("grass_instances", "Scale", params["scale"]),
+        ],
+        links=[
+            GraphLinkSpec("grass_points", "Points", "grass_instances", "Points"),
+            GraphLinkSpec("grass_instances", "Instances", "grass_realize", "Geometry"),
+        ],
+    )
 
 
 REGISTRY = RecipeRegistry()

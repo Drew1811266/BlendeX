@@ -121,6 +121,23 @@ class RecipeTests(unittest.TestCase):
                     self.assertTrue(operation["type"])
                     validate_request(OperationRequest.from_dict(operation))
 
+    def test_registered_recipes_emit_complete_graph_batches(self):
+        recipes = [
+            recipe for recipe in REGISTRY.list_recipes()
+            if recipe["recipe_id"].startswith(("architecture.", "scatter."))
+        ]
+
+        for recipe in recipes:
+            with self.subTest(recipe_id=recipe["recipe_id"]):
+                operations = REGISTRY.build(recipe["recipe_id"])
+                operation_types = {operation["type"] for operation in operations}
+
+                self.assertIn("scene.create_carrier_mesh", operation_types)
+                self.assertIn("geometry_nodes.create_modifier", operation_types)
+                self.assertIn("geometry_nodes.create_node", operation_types)
+                self.assertIn("geometry_nodes.set_socket_value", operation_types)
+                self.assertIn("geometry_nodes.link_sockets", operation_types)
+
     def test_registry_lists_recipe_metadata(self):
         registry = RecipeRegistry()
         registry.register(
