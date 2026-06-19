@@ -15,6 +15,25 @@ class BLENDEX_PT_panel(_PanelBase):
     bl_region_type = "UI"
     bl_category = "BlendeX"
 
+    def _batch_icon(self, batch):
+        if batch.status == "succeeded":
+            return "CHECKMARK"
+        if batch.status == "partial":
+            return "INFO"
+        return "ERROR"
+
+    def _batch_undo_text(self, batch):
+        if batch.undo_status == "undone":
+            return "undo done"
+        if batch.undo_status in {"unavailable", "failed"}:
+            return f"undo {batch.undo_status}"
+        execution_summary = batch.execution_summary if isinstance(batch.execution_summary, dict) else {}
+        return "undo available" if execution_summary.get("undo_available") else "undo unavailable"
+
+    def _batch_text(self, batch):
+        summary = batch.summary or batch.batch_id
+        return f"{batch.status}: {summary} ({batch.operation_count} ops, {self._batch_undo_text(batch)})"
+
     def draw(self, context):
         layout = self.layout
         status = "Running" if STATE.service_running else "Stopped"
@@ -37,9 +56,11 @@ class BLENDEX_PT_panel(_PanelBase):
             layout.label(text=f"{log.operation}: {log.message}", icon=icon)
         layout.separator()
         layout.label(text="Recent Batches")
-        for batch in STATE.recent_batches(5):
-            icon = "CHECKMARK" if batch.status == "succeeded" else "ERROR"
-            layout.label(text=f"{batch.batch_id}: {batch.status}", icon=icon)
+        batches = STATE.recent_batches(5)
+        if not batches:
+            layout.label(text="No recent batches")
+        for batch in batches:
+            layout.label(text=self._batch_text(batch), icon=self._batch_icon(batch))
 
 
 def panel_classes():

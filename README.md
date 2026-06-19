@@ -37,7 +37,7 @@ v0.4 的目标是把这些能力推进到 fully usable local beta：内置 recip
 
 ## v0.4 Development Track
 
-当前版本：`0.37.0`。
+当前版本：`0.38.0`。
 
 0.4 轨道按十个小阶段推进：
 
@@ -72,7 +72,7 @@ v0.4 会把这些路径升级成完整连接、参数化、可见的 Geometry No
 
 ## BlendeX Workflow
 
-1. Enable the Blender add-on from the source tree.
+1. Install the packaged Blender add-on zip or enable the add-on from the source tree.
 2. Start the BlendeX service in the Blender sidebar.
 3. Copy the session token from the Blender sidebar.
 4. Start CodeX with `BLENDEX_SESSION_TOKEN` or `BLENDEX_TOKEN` set to that token.
@@ -165,6 +165,16 @@ Run release checks:
 
 The release check wrapper runs unit tests, Blender smoke, MCP probe, and `git diff --check`.
 
+## Local Beta Add-on Package
+
+Build an installable Blender add-on zip:
+
+```bash
+python3 scripts/package_blender_addon.py
+```
+
+The script writes `dist/blendex-0.38.0-blender-addon.zip`. Install that zip from Blender Preferences > Add-ons > Install from Disk. The package includes both the Blender add-on (`blendex`) and the shared protocol package (`blendex_protocol`).
+
 ## Source Tree Add-on Loading
 
 During development, point Blender at the repository `blender_addon` directory. The add-on bootstraps the sibling `src` directory onto Python path so Blender can import `blendex_protocol`.
@@ -189,12 +199,6 @@ During development, point Blender at the repository `blender_addon` directory. T
 
 ## v0.4 Remaining Work
 
-- Build complete graph recipe batches for all six built-in creative paths.
-- Add planner parameter extraction and runtime capability gating.
-- Improve dry-run and post-execution summaries for full graph workflows.
-- Expand undo coverage for link creation and socket value changes.
-- Improve Blender panel clarity for local beta testers.
-- Add local add-on packaging.
 - Expand real Blender smoke to cover one architecture recipe and one scattering recipe.
 - Write the final readiness audit before declaring v0.4 complete.
 
