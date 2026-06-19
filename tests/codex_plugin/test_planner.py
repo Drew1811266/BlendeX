@@ -76,6 +76,50 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(result["error"]["code"], "PLANNER_UNSUPPORTED_REQUEST")
         self.assertIn("retry_hint", result["error"])
 
+    def test_planner_extracts_grid_tower_parameters(self):
+        result = plan_goal("make a 12 level grid tower with 6 columns", capabilities={})
+
+        self.assertEqual(result["mode"], "recipe")
+        self.assertEqual(result["recipe_id"], "architecture.grid_tower")
+        self.assertEqual(result["parameters"], {"levels": 12, "columns": 6})
+        self.assertTrue(
+            any(
+                operation["params"].get("client_id") == "grid_level_12"
+                for operation in result["operations"]
+                if operation["type"] == "geometry_nodes.create_node"
+            )
+        )
+
+    def test_planner_extracts_scatter_parameters(self):
+        result = plan_goal("scatter stones density 45 seed 9", capabilities={})
+
+        self.assertEqual(result["mode"], "recipe")
+        self.assertEqual(result["recipe_id"], "scatter.stones")
+        self.assertEqual(result["parameters"], {"density": 45, "seed": 9})
+
+    def test_planner_extracts_grass_parameters(self):
+        result = plan_goal("grass scatter density 100 scale 1.5", capabilities={})
+
+        self.assertEqual(result["mode"], "recipe")
+        self.assertEqual(result["recipe_id"], "scatter.grass")
+        self.assertEqual(result["parameters"], {"density": 100, "scale": 1.5})
+
+    def test_planner_rejects_recipe_when_capabilities_miss_required_node(self):
+        result = plan_goal(
+            "create a grass field",
+            capabilities={
+                "node_types": {
+                    "GeometryNodeDistributePointsOnFaces": {},
+                    "GeometryNodeRealizeInstances": {},
+                }
+            },
+        )
+
+        self.assertEqual(result["mode"], "unsupported")
+        self.assertEqual(result["error"]["code"], "PLANNER_UNSUPPORTED_REQUEST")
+        self.assertIn("GeometryNodeInstanceOnPoints", result["error"]["message"])
+        self.assertEqual(result["error"]["details"]["missing_node_types"], ["GeometryNodeInstanceOnPoints"])
+
 
 if __name__ == "__main__":
     unittest.main()

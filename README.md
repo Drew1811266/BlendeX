@@ -37,7 +37,7 @@ v0.4 的目标是把这些能力推进到 fully usable local beta：内置 recip
 
 ## v0.4 Development Track
 
-当前版本：`0.34.0`。
+当前版本：`0.35.0`。
 
 0.4 轨道按十个小阶段推进：
 
