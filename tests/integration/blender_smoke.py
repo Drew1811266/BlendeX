@@ -5,24 +5,72 @@ import bpy
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "blender_addon"))
 
 import blendex
+from blendex.scene import bpy_scene_context
 from blendex.batches import execute_batch, undo_last_batch
 from blendex.executor import GeometryNodesExecutor
+from codex_plugin.blendex_mcp.recipes import REGISTRY
 from blendex_protocol.messages import OperationRequest
 
 
 class SmokeContext:
-    def __init__(self, obj):
-        self.objects = {obj.name: obj}
+    def __init__(self):
+        self._context = bpy_scene_context()
         self.node_types = {
-            "GeometryNodeJoinGeometry": {
-                "inputs": [{"name": "Geometry", "socket_type": "NodeSocketGeometry"}],
-                "outputs": [{"name": "Geometry", "socket_type": "NodeSocketGeometry"}],
-            }
+            "FunctionNodeRandomValue": {},
+            "GeometryNodeDistributePointsOnFaces": {},
+            "GeometryNodeJoinGeometry": {},
+            "GeometryNodeTransform": {},
         }
+
+    def __getattr__(self, name):
+        return getattr(self._context, name)
+
+
+def _carrier_name(operations):
+    for operation in operations:
+        if operation.get("type") == "scene.create_carrier_mesh":
+            return operation.get("params", {}).get("name", "BlendeX Carrier")
+    raise AssertionError("Recipe did not create a carrier mesh")
+
+
+def _execute_recipe(executor, recipe_id, params, expected_label_fragments, minimum_links):
+    operations = REGISTRY.build(recipe_id, params)
+    object_id = _carrier_name(operations)
+    batch = execute_batch(
+        {
+            "target": {"object_id": object_id},
+            "params": {
+                "confirmed": True,
+                "confirmation_id": f"smoke_{recipe_id}",
+                "summary": f"Smoke {recipe_id}",
+                "operations": operations,
+            },
+        },
+        executor,
+    )
+    assert batch["status"] == "succeeded", batch
+    assert batch["execution_summary"]["failed_operations"] == 0
+
+    tree = executor.execute(
+        OperationRequest(
+            id=f"inspect_{recipe_id}",
+            type="geometry_nodes.inspect_tree",
+            target={"object_id": object_id, "modifier_id": "BlendeX Geometry"},
+            params={},
+        )
+    )
+    labels = {node.get("label", "") for node in tree["nodes"]}
+    for fragment in expected_label_fragments:
+        assert any(fragment in label for label in labels), (fragment, labels)
+    assert len(tree["links"]) >= minimum_links, tree["links"]
+
+    undo = undo_last_batch()
+    assert undo["undo_status"] == "undone", undo
 
 
 def main():
@@ -31,7 +79,7 @@ def main():
         bpy.ops.mesh.primitive_cube_add(size=2)
         obj = bpy.context.object
 
-        executor = GeometryNodesExecutor(SmokeContext(obj))
+        executor = GeometryNodesExecutor(SmokeContext())
         modifier = executor.execute(
             OperationRequest(
                 id="smoke_modifier",
@@ -116,6 +164,21 @@ def main():
         )
         labels_after_undo = {node.get("label") for node in tree_after_undo["nodes"]}
         assert "Smoke Batch Join" not in labels_after_undo
+
+        _execute_recipe(
+            executor,
+            "architecture.grid_tower",
+            {"levels": 2, "columns": 2},
+            {"Grid Tower", "Tower Level 1", "Tower Level 2"},
+            minimum_links=2,
+        )
+        _execute_recipe(
+            executor,
+            "scatter.ground_points",
+            {"density": 5, "seed": 2},
+            {"Ground Points", "Ground Random", "Ground Density Random"},
+            minimum_links=1,
+        )
     finally:
         blendex.unregister()
 

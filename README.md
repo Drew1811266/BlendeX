@@ -37,7 +37,7 @@ v0.4 的目标是把这些能力推进到 fully usable local beta：内置 recip
 
 ## v0.4 Development Track
 
-当前版本：`0.38.0`。
+当前版本：`0.39.0`。
 
 0.4 轨道按十个小阶段推进：
 
@@ -151,6 +151,8 @@ Run Blender smoke test:
 BLENDER=/path/to/blender python3 scripts/run_blender_smoke.py
 ```
 
+When `BLENDER` is set, the smoke test executes a basic node batch plus one architecture recipe (`architecture.grid_tower`) and one scattering recipe (`scatter.ground_points`) in Blender background mode.
+
 If `BLENDER` is not set, the smoke script prints a clear skip message and exits successfully:
 
 ```text
@@ -173,7 +175,11 @@ Build an installable Blender add-on zip:
 python3 scripts/package_blender_addon.py
 ```
 
-The script writes `dist/blendex-0.38.0-blender-addon.zip`. Install that zip from Blender Preferences > Add-ons > Install from Disk. The package includes both the Blender add-on (`blendex`) and the shared protocol package (`blendex_protocol`).
+The script writes `dist/blendex-0.39.0-blender-addon.zip`. Install that zip from Blender Preferences > Add-ons > Install from Disk. The package includes both the Blender add-on (`blendex`) and the shared protocol package (`blendex_protocol`).
+
+## Demo Prompts
+
+See `docs/demo-prompts.md` for copy-pasteable prompts covering all six built-in recipes and the dry-run, confirm, inspect, and undo flow.
 
 ## Source Tree Add-on Loading
 
@@ -199,7 +205,6 @@ During development, point Blender at the repository `blender_addon` directory. T
 
 ## v0.4 Remaining Work
 
-- Expand real Blender smoke to cover one architecture recipe and one scattering recipe.
 - Write the final readiness audit before declaring v0.4 complete.
 
 ## License

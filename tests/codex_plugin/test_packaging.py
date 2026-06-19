@@ -12,7 +12,7 @@ class PackagingTests(unittest.TestCase):
             package_path = build_package(Path(tmp))
 
             self.assertTrue(package_path.exists())
-            self.assertEqual(package_path.name, "blendex-0.38.0-blender-addon.zip")
+            self.assertEqual(package_path.name, "blendex-0.39.0-blender-addon.zip")
             with zipfile.ZipFile(package_path) as archive:
                 names = set(archive.namelist())
 
