@@ -76,6 +76,18 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(result["error"]["code"], "PLANNER_UNSUPPORTED_REQUEST")
         self.assertIn("retry_hint", result["error"])
 
+    def test_planner_uses_semantic_graph_plan_for_heldout_prompt(self):
+        result = plan_goal(
+            "scatter uneven small pebbles across a sloped ground surface with random scale",
+            capabilities={"node_types": {}},
+        )
+
+        self.assertEqual(result["mode"], "graph_plan")
+        self.assertNotIn("recipe_id", result)
+        self.assertIn("GeometryNodeDistributePointsOnFaces", result["node_types"])
+        self.assertIn("GeometryNodeInstanceOnPoints", result["node_types"])
+        self.assertTrue(result["validation"]["valid"])
+
     def test_planner_extracts_grid_tower_parameters(self):
         result = plan_goal("make a 12 level grid tower with 6 columns", capabilities={})
 

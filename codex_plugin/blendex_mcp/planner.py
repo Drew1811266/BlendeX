@@ -1,6 +1,7 @@
 import re
 from typing import Any, Dict, Optional
 
+from .graph_planner import plan_graph
 from .recipes import REGISTRY
 
 
@@ -128,6 +129,9 @@ def plan_goal(prompt: str, capabilities: Optional[Dict[str, Any]] = None) -> Dic
             "operations": operations,
             "message": f"Matched recipe: {recipe.label}",
         }
+    graph_plan = plan_graph(prompt, capabilities)
+    if graph_plan.get("mode") == "graph_plan":
+        return graph_plan
     return _unsupported(
         "BlendeX v0.4 can plan architecture, hard-surface, nature, and scattering workflows.",
         (
