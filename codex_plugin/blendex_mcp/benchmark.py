@@ -81,6 +81,14 @@ def fake_geometry_nodes_capabilities() -> Dict[str, Any]:
                 ],
                 [value_field],
             ),
+            "ShaderNodeSeparateXYZ": _node_capability(
+                [_socket("Vector", "NodeSocketVector", is_field=True)],
+                [
+                    _socket("X", "NodeSocketFloat", direction="output", is_field=True),
+                    _socket("Y", "NodeSocketFloat", direction="output", is_field=True),
+                    _socket("Z", "NodeSocketFloat", direction="output", is_field=True),
+                ],
+            ),
             "ShaderNodeMath": _node_capability(
                 [_socket("Value", "NodeSocketFloat", is_field=True), _socket("Value_001", "NodeSocketFloat", is_field=True)],
                 [value_field],
@@ -90,7 +98,7 @@ def fake_geometry_nodes_capabilities() -> Dict[str, Any]:
                 [vector_field],
             ),
             "FunctionNodeCompare": _node_capability(
-                [_socket("A", "NodeSocketFloat", is_field=True), _socket("B", "NodeSocketFloat")],
+                [_socket("A", "", is_field=True), _socket("B", "")],
                 [_socket("Result", "NodeSocketBool", direction="output", is_field=True), bool_field],
             ),
             "GeometryNodeCaptureAttribute": _node_capability(
@@ -102,7 +110,7 @@ def fake_geometry_nodes_capabilities() -> Dict[str, Any]:
                     geometry_in,
                     _socket("Selection", "NodeSocketBool", is_field=True),
                     _socket("Name", "NodeSocketString"),
-                    _socket("Value", "NodeSocketFloat", is_field=True),
+                    _socket("Value", "", is_field=True),
                 ],
                 [geometry_out],
             ),
@@ -116,8 +124,11 @@ def fake_geometry_nodes_capabilities() -> Dict[str, Any]:
             "GeometryNodeObjectInfo": _node_capability([], [geometry_out]),
             "GeometryNodeCollectionInfo": _node_capability([], [_socket("Instances", direction="output")]),
             "GeometryNodeMeshCube": _node_capability([], [mesh_out]),
-            "GeometryNodeMeshLine": _node_capability([], [mesh_out]),
-            "GeometryNodeMeshGrid": _node_capability([], [mesh_out]),
+            "GeometryNodeMeshLine": _node_capability([_socket("Count", "NodeSocketInt")], [mesh_out]),
+            "GeometryNodeMeshGrid": _node_capability(
+                [_socket("Vertices X", "NodeSocketInt"), _socket("Vertices Y", "NodeSocketInt")],
+                [mesh_out],
+            ),
             "GeometryNodeExtrudeMesh": _node_capability([_socket("Mesh")], [mesh_out]),
             "GeometryNodeCurveToMesh": _node_capability([_socket("Curve"), _socket("Profile Curve")], [mesh_out]),
         },

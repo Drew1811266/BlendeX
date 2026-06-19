@@ -19,6 +19,18 @@ def _socket_by_name(capability: Dict[str, Any], direction: str, socket_name: str
     return None
 
 
+def _dynamic_group_input_socket(graph: Dict[str, Any], socket_name: str) -> Optional[Dict[str, Any]]:
+    for socket in graph.get("group_inputs", []):
+        if socket_name in (socket.get("name"), socket.get("identifier")):
+            return {
+                "name": socket.get("name"),
+                "identifier": socket.get("identifier"),
+                "socket_type": socket.get("socket_type", ""),
+                "is_field": False,
+            }
+    return None
+
+
 def _capability_for_node(
     capabilities: Optional[Dict[str, Any]],
     node: Dict[str, Any],
@@ -87,6 +99,8 @@ def _validate_capability_links(
         if from_capability is None or to_capability is None:
             continue
         from_socket = _socket_by_name(from_capability, "output", link.get("from_socket"))
+        if from_socket is None and from_node.get("node_type") == "NodeGroupInput":
+            from_socket = _dynamic_group_input_socket(graph, link.get("from_socket"))
         to_socket = _socket_by_name(to_capability, "input", link.get("to_socket"))
         if from_socket is None or to_socket is None:
             errors.append(_error("UNKNOWN_SOCKET", "Link references an unknown socket.", {"link": link}))

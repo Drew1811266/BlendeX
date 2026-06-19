@@ -44,6 +44,12 @@ _EFFECT_KEYWORDS = {
         "every other",
         "place",
         "around a circle",
+        "block",
+        "blocks",
+        "lamp",
+        "lamps",
+        "window",
+        "windows",
     ),
     "deform": (
         "deform",
@@ -68,6 +74,8 @@ _EFFECT_KEYWORDS = {
         "sinusoidal",
         "height",
         "slope",
+        "steep",
+        "flat",
         "index",
         "checker",
         "checkerboard",
@@ -76,6 +84,17 @@ _EFFECT_KEYWORDS = {
         "gradient",
         "density",
         "based on",
+        "every other",
+        "path",
+        "curve",
+        "rotation",
+        "direction",
+        "grid",
+        "exposed",
+        "parameter",
+        "circle",
+        "ring",
+        "vertex group",
     ),
     "attribute": (
         "attribute",
@@ -87,6 +106,14 @@ _EFFECT_KEYWORDS = {
         "density attribute",
         "floor index",
         "original position",
+        "variation",
+        "variations",
+        "later shading",
+        "exposed parameter",
+        "parameter",
+        "realize",
+        "beveled individually",
+        "individually",
     ),
     "material": (
         "material",
@@ -112,6 +139,9 @@ _EFFECT_KEYWORDS = {
         "boundary",
         "only where",
         "alternating",
+        "near",
+        "darker",
+        "flat",
     ),
     "simulation": (
         "simulation",
@@ -218,6 +248,20 @@ def _effects_for_prompt(prompt: str) -> List[str]:
         _append_unique(effects, "field")
     if "scatter" in effects and _contains_any(prompt, ("density", "densely", "sparsely", "center", "edges")):
         _append_unique(effects, "selection")
+    if "instance" in effects and _contains_any(prompt, ("every other", "grid", "circle", "path", "curve")):
+        _append_unique(effects, "field")
+    if "material" in effects and _contains_any(prompt, ("height", "upper", "slope", "steep", "flat", "darker")):
+        _append_unique(effects, "field")
+        _append_unique(effects, "selection")
+    if "material" in effects and "selection" in effects and _contains_any(prompt, ("boundary", "trim")):
+        _append_unique(effects, "attribute")
+        _append_unique(effects, "field")
+    if "architecture" in effects and _contains_any(prompt, ("exposed parameter", "node group", "floor count")):
+        _append_unique(effects, "attribute")
+        _append_unique(effects, "field")
+    if "deform" in effects and _contains_any(prompt, ("noise", "terrain", "displacement")):
+        _append_unique(effects, "attribute")
+        _append_unique(effects, "field")
     return effects
 
 

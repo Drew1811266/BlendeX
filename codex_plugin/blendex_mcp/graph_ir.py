@@ -17,6 +17,7 @@ def new_graph(object_name: str, modifier_name: str = DEFAULT_MODIFIER_NAME) -> D
     return {
         "object_name": object_name,
         "modifier_name": modifier_name,
+        "group_inputs": [],
         "nodes": [],
         "socket_values": [],
         "links": [],
@@ -42,6 +43,24 @@ def add_node(
     }
     graph.setdefault("nodes", []).append(node)
     return node
+
+
+def add_group_input(
+    graph: Dict[str, Any],
+    name: str,
+    socket_type: str,
+    default_value: Any = None,
+    *,
+    identifier: Optional[str] = None,
+) -> Dict[str, Any]:
+    group_input = {
+        "name": name,
+        "identifier": identifier or name.lower().replace(" ", "_"),
+        "socket_type": socket_type,
+        "default_value": default_value,
+    }
+    graph.setdefault("group_inputs", []).append(group_input)
+    return group_input
 
 
 def set_socket_value(graph: Dict[str, Any], node_id: str, socket: str, value: Any) -> Dict[str, Any]:
