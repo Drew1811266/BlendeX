@@ -89,6 +89,59 @@ class RecipeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "levels must be >= 1"):
             REGISTRY.build("architecture.grid_tower", {"levels": 0})
 
+    def test_grid_tower_recipe_creates_level_modules(self):
+        operations = REGISTRY.build("architecture.grid_tower", {"levels": 4, "columns": 3})
+        created_client_ids = [
+            operation["params"].get("client_id")
+            for operation in operations
+            if operation["type"] == "geometry_nodes.create_node"
+        ]
+        socket_values = [
+            operation["params"]
+            for operation in operations
+            if operation["type"] == "geometry_nodes.set_socket_value"
+        ]
+
+        for level in range(1, 5):
+            self.assertIn(f"grid_level_{level}", created_client_ids)
+        self.assertIn(
+            {"node_id": "grid_level_4", "socket": "Translation", "value": [0, 0, 3]},
+            socket_values,
+        )
+
+    def test_wall_panel_recipe_creates_segment_modules(self):
+        operations = REGISTRY.build("architecture.wall_panel", {"segments": 3})
+        created_client_ids = [
+            operation["params"].get("client_id")
+            for operation in operations
+            if operation["type"] == "geometry_nodes.create_node"
+        ]
+
+        self.assertIn("wall_segment_1", created_client_ids)
+        self.assertIn("wall_segment_2", created_client_ids)
+        self.assertIn("wall_segment_3", created_client_ids)
+
+    def test_modular_building_recipe_creates_floor_modules(self):
+        operations = REGISTRY.build("architecture.modular_building", {"floors": 3})
+        created_client_ids = [
+            operation["params"].get("client_id")
+            for operation in operations
+            if operation["type"] == "geometry_nodes.create_node"
+        ]
+        socket_values = [
+            operation["params"]
+            for operation in operations
+            if operation["type"] == "geometry_nodes.set_socket_value"
+        ]
+
+        self.assertIn("building_floor_1", created_client_ids)
+        self.assertIn("building_floor_2", created_client_ids)
+        self.assertIn("building_floor_3", created_client_ids)
+        self.assertIn(
+            {"node_id": "building_floor_3", "socket": "Translation", "value": [0, 0, 2]},
+            socket_values,
+        )
+
     def test_registered_architecture_and_scatter_recipes_emit_valid_batches(self):
         recipes = [
             recipe for recipe in REGISTRY.list_recipes()

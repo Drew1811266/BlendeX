@@ -143,50 +143,94 @@ def _graph_operations(
 
 def _grid_tower(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Grid Tower"
+    level_nodes = [
+        GraphNodeSpec(
+            f"grid_level_{level}",
+            "GeometryNodeTransform",
+            f"Tower Level {level}",
+            [220, -120 * (level - 1)],
+        )
+        for level in range(1, params["levels"] + 1)
+    ]
     return _graph_operations(
         object_id,
         nodes=[
             GraphNodeSpec("grid_join", "GeometryNodeJoinGeometry", f"Grid Tower {params['levels']}x{params['columns']}", [0, 0]),
-            GraphNodeSpec("grid_transform", "GeometryNodeTransform", "Module Transform", [220, 0]),
+            *level_nodes,
         ],
         socket_values=[
-            GraphSocketValueSpec("grid_transform", "Scale", [params["columns"], params["columns"], params["levels"]]),
+            GraphSocketValueSpec(f"grid_level_{level}", "Scale", [params["columns"], params["columns"], 1])
+            for level in range(1, params["levels"] + 1)
+        ]
+        + [
+            GraphSocketValueSpec(f"grid_level_{level}", "Translation", [0, 0, level - 1])
+            for level in range(1, params["levels"] + 1)
         ],
         links=[
-            GraphLinkSpec("grid_transform", "Geometry", "grid_join", "Geometry"),
+            GraphLinkSpec(f"grid_level_{level}", "Geometry", "grid_join", "Geometry")
+            for level in range(1, params["levels"] + 1)
         ],
     )
 
 
 def _wall_panel(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Wall Panel"
+    segment_nodes = [
+        GraphNodeSpec(
+            f"wall_segment_{segment}",
+            "GeometryNodeTransform",
+            f"Wall Segment {segment}",
+            [220, -110 * (segment - 1)],
+        )
+        for segment in range(1, params["segments"] + 1)
+    ]
     return _graph_operations(
         object_id,
         nodes=[
             GraphNodeSpec("wall_join", "GeometryNodeJoinGeometry", f"Wall Panel {params['segments']} segments", [0, 0]),
-            GraphNodeSpec("wall_transform", "GeometryNodeTransform", "Panel Transform", [220, 0]),
+            *segment_nodes,
         ],
         socket_values=[
-            GraphSocketValueSpec("wall_transform", "Scale", [params["segments"], 1, 1]),
+            GraphSocketValueSpec(f"wall_segment_{segment}", "Translation", [segment - 1, 0, 0])
+            for segment in range(1, params["segments"] + 1)
         ],
         links=[
-            GraphLinkSpec("wall_transform", "Geometry", "wall_join", "Geometry"),
+            GraphLinkSpec(f"wall_segment_{segment}", "Geometry", "wall_join", "Geometry")
+            for segment in range(1, params["segments"] + 1)
         ],
     )
 
 
 def _modular_building(params: Dict[str, Any]) -> List[Dict[str, Any]]:
     object_id = "BlendeX Modular Building"
+    floor_nodes = [
+        GraphNodeSpec(
+            f"building_floor_{floor}",
+            "GeometryNodeTransform",
+            f"Building Floor {floor}",
+            [220, -120 * (floor - 1)],
+        )
+        for floor in range(1, params["floors"] + 1)
+    ]
     return _graph_operations(
         object_id,
         nodes=[
             GraphNodeSpec("building_join", "GeometryNodeJoinGeometry", f"Building {params['floors']} floors", [0, 0]),
             GraphNodeSpec("building_material", "GeometryNodeSetMaterial", "Material Zones", [220, -180]),
+            *floor_nodes,
         ],
         socket_values=[
             GraphSocketValueSpec("building_material", "Selection", True),
+            *[
+                GraphSocketValueSpec(f"building_floor_{floor}", "Translation", [0, 0, floor - 1])
+                for floor in range(1, params["floors"] + 1)
+            ],
         ],
         links=[
+            *[
+                GraphLinkSpec(f"building_floor_{floor}", "Geometry", "building_material", "Geometry")
+                for floor in range(1, params["floors"] + 1)
+            ],
             GraphLinkSpec("building_material", "Geometry", "building_join", "Geometry"),
         ],
     )
