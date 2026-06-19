@@ -16,6 +16,7 @@ class GraphPlannerTests(unittest.TestCase):
         self.assertIn("GeometryNodeInstanceOnPoints", result["node_types"])
         self.assertIn("GeometryNodeRealizeInstances", result["node_types"])
         self.assertTrue(result["validation"]["valid"])
+        self.assertEqual(result["repairs"], [])
         self.assertTrue(any(operation["type"] == "geometry_nodes.create_node" for operation in result["operations"]))
         self.assertIn("semantic", result["explanation"].lower())
 

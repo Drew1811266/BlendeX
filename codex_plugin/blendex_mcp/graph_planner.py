@@ -2,6 +2,7 @@ from typing import Any, Dict, Optional, Set
 
 from .effect_model import parse_effect_intent
 from .graph_ir import add_link, add_node, graph_to_operations, new_graph, set_socket_value
+from .graph_repair import repair_graph
 from .graph_validation import validate_graph
 from .node_semantics import nodes_for_effect
 
@@ -164,12 +165,19 @@ def plan_graph(prompt: str, capabilities: Optional[Dict[str, Any]] = None) -> Di
             "Refresh Blender capabilities or simplify the request.",
             {"missing_node_types": missing_node_types, "intent": intent},
         )
-    validation = validate_graph(graph, _capabilities_for_validation(capabilities))
+    validation_capabilities = _capabilities_for_validation(capabilities)
+    repairs = []
+    validation = validate_graph(graph, validation_capabilities)
+    if not validation["valid"]:
+        repair_result = repair_graph(graph, validation_capabilities)
+        graph = repair_result["graph"]
+        validation = repair_result["validation"]
+        repairs = repair_result["repairs"]
     if not validation["valid"]:
         return _unsupported(
             "BlendeX generated a graph candidate but static validation rejected it.",
             "Try a simpler procedural request or refresh Blender capabilities.",
-            {"validation": validation, "intent": intent},
+            {"validation": validation, "repairs": repairs, "intent": intent},
         )
     semantic_candidates = {
         effect: nodes_for_effect(effect)
@@ -184,6 +192,7 @@ def plan_graph(prompt: str, capabilities: Optional[Dict[str, Any]] = None) -> Di
         "node_types": [node["node_type"] for node in graph.get("nodes", [])],
         "operations": graph_to_operations(graph),
         "validation": validation,
+        "repairs": repairs,
         "semantic_candidates": semantic_candidates,
         "explanation": "Semantic graph planner selected nodes by effect intent and validated the graph IR.",
         "message": "Synthesized semantic Geometry Nodes graph plan.",
