@@ -13,6 +13,8 @@ class SmokeAndDemoDocsTests(unittest.TestCase):
         self.assertIn("architecture.grid_tower", smoke)
         self.assertIn("scatter.ground_points", smoke)
         self.assertIn("undo_last_batch", smoke)
+        self.assertIn("traceback.print_exc", smoke)
+        self.assertIn("raise SystemExit(1)", smoke)
 
     def test_demo_prompts_cover_all_builtin_recipes_and_flow(self):
         demo = (ROOT / "docs" / "demo-prompts.md").read_text()

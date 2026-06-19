@@ -436,7 +436,14 @@ class GeometryNodesExecutor:
             reference_name = self._socket_name(reference)
         return bool(socket_name) and socket_name == reference_name
 
+    def _socket_allows_multiple_links(self, socket: Any) -> bool:
+        if isinstance(socket, dict):
+            return bool(socket.get("is_multi_input") or socket.get("multi_input"))
+        return bool(getattr(socket, "is_multi_input", False) or getattr(socket, "multi_input", False))
+
     def _input_has_link(self, tree: Any, node: Any, socket: Any) -> bool:
+        if self._socket_allows_multiple_links(socket):
+            return False
         for link in getattr(tree, "links", []) or []:
             if self._node_matches(self._link_to_node(link), node) and self._socket_matches(
                 self._link_to_socket(link),

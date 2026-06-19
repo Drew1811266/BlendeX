@@ -37,7 +37,7 @@ v0.4 的目标是把这些能力推进到 fully usable local beta：内置 recip
 
 ## v0.4 Development Track
 
-当前版本：`0.39.0`。
+当前版本：`0.40.0`。
 
 0.4 轨道按十个小阶段推进：
 
@@ -175,7 +175,7 @@ Build an installable Blender add-on zip:
 python3 scripts/package_blender_addon.py
 ```
 
-The script writes `dist/blendex-0.39.0-blender-addon.zip`. Install that zip from Blender Preferences > Add-ons > Install from Disk. The package includes both the Blender add-on (`blendex`) and the shared protocol package (`blendex_protocol`).
+The script writes `dist/blendex-0.40.0-blender-addon.zip`. Install that zip from Blender Preferences > Add-ons > Install from Disk. The package includes both the Blender add-on (`blendex`) and the shared protocol package (`blendex_protocol`).
 
 ## Demo Prompts
 
@@ -203,9 +203,9 @@ During development, point Blender at the repository `blender_addon` directory. T
 └── tests/
 ```
 
-## v0.4 Remaining Work
+## v0.4 Readiness
 
-- Write the final readiness audit before declaring v0.4 complete.
+The final readiness audit is available at `docs/readiness-audit-v0.4.md`. v0.4 is ready for local beta use within the documented six-recipe scope.
 
 ## License
 

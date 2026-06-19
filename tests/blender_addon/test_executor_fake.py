@@ -726,6 +726,47 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(len(tree.links), 1)
         self.assertIs(tree.links.created[0], existing)
 
+    def test_link_sockets_allows_existing_link_on_multi_input_socket(self):
+        context = FakeContext()
+        tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group
+        tree.nodes = FakeBlenderNodeCollection()
+        tree.links = FakeLinkCollection()
+        first_source = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        second_source = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        to_node = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        to_node.inputs.get("Geometry").is_multi_input = True
+        executor = GeometryNodesExecutor(context)
+
+        executor.execute(
+            OperationRequest(
+                id="req_link_multi_first",
+                type="geometry_nodes.link_sockets",
+                target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                params={
+                    "from_node": first_source.name,
+                    "from_socket": "Geometry",
+                    "to_node": to_node.name,
+                    "to_socket": "Geometry",
+                },
+            )
+        )
+        result = executor.execute(
+            OperationRequest(
+                id="req_link_multi_second",
+                type="geometry_nodes.link_sockets",
+                target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                params={
+                    "from_node": second_source.name,
+                    "from_socket": "Geometry",
+                    "to_node": to_node.name,
+                    "to_socket": "Geometry",
+                },
+            )
+        )
+
+        self.assertEqual(result["to_node"], to_node.name)
+        self.assertEqual(len(tree.links), 2)
+
     def test_label_node_updates_label(self):
         context = FakeContext()
         tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group

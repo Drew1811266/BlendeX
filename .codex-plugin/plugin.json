@@ -1,6 +1,6 @@
 {
   "name": "blendex",
-  "version": "0.39.0",
+  "version": "0.40.0",
   "description": "Connect CodeX to Blender Geometry Nodes through safe structured operations.",
   "author": {
     "name": "BlendeX Contributors"
