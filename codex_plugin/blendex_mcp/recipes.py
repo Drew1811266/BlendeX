@@ -243,14 +243,19 @@ def _stone_scatter(params: Dict[str, Any]) -> List[Dict[str, Any]]:
         nodes=[
             GraphNodeSpec("scatter_points", "GeometryNodeDistributePointsOnFaces", f"Stone Points density {params['density']}", [0, 0]),
             GraphNodeSpec("scatter_instances", "GeometryNodeInstanceOnPoints", f"Stone Instances seed {params['seed']}", [220, 0]),
+            GraphNodeSpec("scatter_scale_random", "FunctionNodeRandomValue", "Stone Scale Random", [220, -180]),
             GraphNodeSpec("scatter_realize", "GeometryNodeRealizeInstances", "Realize Stone Instances", [440, 0]),
         ],
         socket_values=[
             GraphSocketValueSpec("scatter_points", "Density", params["density"]),
             GraphSocketValueSpec("scatter_instances", "Seed", params["seed"]),
+            GraphSocketValueSpec("scatter_scale_random", "Min", 0.5),
+            GraphSocketValueSpec("scatter_scale_random", "Max", 1.5),
+            GraphSocketValueSpec("scatter_scale_random", "Seed", params["seed"]),
         ],
         links=[
             GraphLinkSpec("scatter_points", "Points", "scatter_instances", "Points"),
+            GraphLinkSpec("scatter_scale_random", "Value", "scatter_instances", "Scale"),
             GraphLinkSpec("scatter_instances", "Instances", "scatter_realize", "Geometry"),
         ],
     )
@@ -263,13 +268,17 @@ def _ground_points(params: Dict[str, Any]) -> List[Dict[str, Any]]:
         nodes=[
             GraphNodeSpec("ground_points", "GeometryNodeDistributePointsOnFaces", f"Ground Points density {params['density']}", [0, 0]),
             GraphNodeSpec("ground_random", "FunctionNodeRandomValue", f"Ground Random seed {params['seed']}", [220, 0]),
+            GraphNodeSpec("ground_density_random", "FunctionNodeRandomValue", "Ground Density Random", [220, -180]),
         ],
         socket_values=[
             GraphSocketValueSpec("ground_points", "Density", params["density"]),
             GraphSocketValueSpec("ground_random", "Seed", params["seed"]),
+            GraphSocketValueSpec("ground_density_random", "Min", 0.0),
+            GraphSocketValueSpec("ground_density_random", "Max", params["density"]),
+            GraphSocketValueSpec("ground_density_random", "Seed", params["seed"]),
         ],
         links=[
-            GraphLinkSpec("ground_random", "Value", "ground_points", "Density"),
+            GraphLinkSpec("ground_density_random", "Value", "ground_points", "Density"),
         ],
     )
 
@@ -281,14 +290,18 @@ def _grass_scatter(params: Dict[str, Any]) -> List[Dict[str, Any]]:
         nodes=[
             GraphNodeSpec("grass_points", "GeometryNodeDistributePointsOnFaces", f"Grass Points density {params['density']}", [0, 0]),
             GraphNodeSpec("grass_instances", "GeometryNodeInstanceOnPoints", f"Grass Instances scale {params['scale']}", [220, 0]),
+            GraphNodeSpec("grass_scale_random", "FunctionNodeRandomValue", "Grass Scale Random", [220, -180]),
             GraphNodeSpec("grass_realize", "GeometryNodeRealizeInstances", "Realize Grass Instances", [440, 0]),
         ],
         socket_values=[
             GraphSocketValueSpec("grass_points", "Density", params["density"]),
             GraphSocketValueSpec("grass_instances", "Scale", params["scale"]),
+            GraphSocketValueSpec("grass_scale_random", "Min", params["scale"] * 0.5),
+            GraphSocketValueSpec("grass_scale_random", "Max", params["scale"] * 1.5),
         ],
         links=[
             GraphLinkSpec("grass_points", "Points", "grass_instances", "Points"),
+            GraphLinkSpec("grass_scale_random", "Value", "grass_instances", "Scale"),
             GraphLinkSpec("grass_instances", "Instances", "grass_realize", "Geometry"),
         ],
     )

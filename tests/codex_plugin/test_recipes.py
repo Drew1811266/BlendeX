@@ -53,6 +53,78 @@ class RecipeTests(unittest.TestCase):
         self.assertIn("Grass Points density 123", grass_labels)
         self.assertIn("Grass Instances scale 2.5", grass_labels)
 
+    def test_stone_scatter_recipe_adds_random_scale_control(self):
+        operations = REGISTRY.build("scatter.stones", {"density": 37, "seed": 12})
+        created_client_ids = [
+            operation["params"].get("client_id")
+            for operation in operations
+            if operation["type"] == "geometry_nodes.create_node"
+        ]
+        links = [
+            operation["params"]
+            for operation in operations
+            if operation["type"] == "geometry_nodes.link_sockets"
+        ]
+
+        self.assertIn("scatter_scale_random", created_client_ids)
+        self.assertIn(
+            {
+                "from_node": "scatter_scale_random",
+                "from_socket": "Value",
+                "to_node": "scatter_instances",
+                "to_socket": "Scale",
+            },
+            links,
+        )
+
+    def test_ground_points_recipe_adds_density_random_control(self):
+        operations = REGISTRY.build("scatter.ground_points", {"density": 88, "seed": 34})
+        created_client_ids = [
+            operation["params"].get("client_id")
+            for operation in operations
+            if operation["type"] == "geometry_nodes.create_node"
+        ]
+        links = [
+            operation["params"]
+            for operation in operations
+            if operation["type"] == "geometry_nodes.link_sockets"
+        ]
+
+        self.assertIn("ground_density_random", created_client_ids)
+        self.assertIn(
+            {
+                "from_node": "ground_density_random",
+                "from_socket": "Value",
+                "to_node": "ground_points",
+                "to_socket": "Density",
+            },
+            links,
+        )
+
+    def test_grass_scatter_recipe_adds_random_scale_control(self):
+        operations = REGISTRY.build("scatter.grass", {"density": 123, "scale": 2.5})
+        created_client_ids = [
+            operation["params"].get("client_id")
+            for operation in operations
+            if operation["type"] == "geometry_nodes.create_node"
+        ]
+        links = [
+            operation["params"]
+            for operation in operations
+            if operation["type"] == "geometry_nodes.link_sockets"
+        ]
+
+        self.assertIn("grass_scale_random", created_client_ids)
+        self.assertIn(
+            {
+                "from_node": "grass_scale_random",
+                "from_socket": "Value",
+                "to_node": "grass_instances",
+                "to_socket": "Scale",
+            },
+            links,
+        )
+
     def test_scatter_recipe_parameters_validate_bounds_and_types(self):
         invalid_cases = [
             ("scatter.stones", {"density": 0}, "density must be >= 1"),

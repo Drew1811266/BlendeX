@@ -10,8 +10,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class VersionTests(unittest.TestCase):
-    def test_v0_4_architecture_recipe_stage_is_0_33(self):
-        self.assertEqual(VERSION, "0.33.0")
+    def test_v0_4_scattering_recipe_stage_is_0_34(self):
+        self.assertEqual(VERSION, "0.34.0")
 
     def test_plugin_manifest_uses_runtime_version(self):
         manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
