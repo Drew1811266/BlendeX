@@ -132,6 +132,49 @@ def _empty_preview() -> Dict[str, List[Dict[str, Any]]]:
     }
 
 
+def _preview_target(preview: Dict[str, List[Dict[str, Any]]]) -> Dict[str, str]:
+    for key in ("modifiers", "nodes"):
+        values = preview.get(key, [])
+        if not values:
+            continue
+        first = values[0]
+        object_id = first.get("object_id") if isinstance(first, dict) else None
+        modifier_id = first.get("modifier_id") if isinstance(first, dict) else None
+        return {
+            "object_id": object_id if isinstance(object_id, str) and object_id else "selected target",
+            "modifier_id": modifier_id if isinstance(modifier_id, str) and modifier_id else "BlendeX Geometry",
+        }
+    objects = preview.get("objects", [])
+    if objects and isinstance(objects[0], dict):
+        name = objects[0].get("name")
+        if isinstance(name, str) and name:
+            return {"object_id": name, "modifier_id": "BlendeX Geometry"}
+    return {"object_id": "selected target", "modifier_id": "BlendeX Geometry"}
+
+
+def _preview_summary(
+    status: str,
+    operations: List[Dict[str, Any]],
+    preview: Dict[str, List[Dict[str, Any]]],
+    warnings: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    return {
+        "status": status,
+        "requires_confirmation": status in {"valid", "partial"},
+        "operation_count": len(operations),
+        "target": _preview_target(preview),
+        "changes": {
+            "objects": len(preview.get("objects", [])),
+            "modifiers": len(preview.get("modifiers", [])),
+            "nodes": len(preview.get("nodes", [])),
+            "socket_values": len(preview.get("socket_values", [])),
+            "links": len(preview.get("links", [])),
+            "labels": len(preview.get("labels", [])),
+        },
+        "warnings": len(warnings),
+    }
+
+
 def _record_preview(operation: Dict[str, Any], preview: Dict[str, List[Dict[str, Any]]]) -> None:
     item = _preview_for(operation)
     section = item.pop("section")
@@ -308,4 +351,11 @@ def dry_run_operations(operations: List[Dict[str, Any]], executor: Any) -> Dict[
             warning["operation_id"] = result["id"]
             warnings.append(warning)
             preview["warnings"].append(warning)
-    return {"status": _status_for(results, warnings), "operations": results, "preview": preview, "warnings": warnings}
+    status = _status_for(results, warnings)
+    return {
+        "status": status,
+        "operations": results,
+        "preview": preview,
+        "summary": _preview_summary(status, operations, preview, warnings),
+        "warnings": warnings,
+    }

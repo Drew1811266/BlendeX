@@ -25,6 +25,7 @@ class BatchRecord:
     summary: str
     operations: List[Dict[str, Any]]
     preview: Dict[str, Any]
+    execution_summary: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time)
     dry_run: bool = False
     actor: str = ""
@@ -47,6 +48,7 @@ class BatchRecord:
             "actor": self.actor,
             "operations": _json_safe(self.operations),
             "preview": _json_safe(self.preview),
+            "execution_summary": _json_safe(self.execution_summary),
             "error": _json_safe(self.error),
             "undo_status": self.undo_status,
             "undo_error": _json_safe(self.undo_error),

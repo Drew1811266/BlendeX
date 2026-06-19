@@ -22,6 +22,14 @@ _MUTATING_OPERATION_TYPES = {
     "geometry_nodes.label_node",
     "geometry_nodes.mark_ownership",
 }
+_CREATED_SUMMARY_KEYS = {
+    "scene.create_carrier_mesh": "objects",
+    "geometry_nodes.create_modifier": "modifiers",
+    "geometry_nodes.create_node": "nodes",
+    "geometry_nodes.link_sockets": "links",
+    "geometry_nodes.set_socket_value": "socket_values",
+    "geometry_nodes.label_node": "labels",
+}
 
 
 def _batch_id() -> str:
@@ -350,6 +358,45 @@ def _batch_preview(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _created_counts(results: List[Dict[str, Any]]) -> Dict[str, int]:
+    counts = {"objects": 0, "modifiers": 0, "nodes": 0, "links": 0, "socket_values": 0, "labels": 0}
+    for result in results:
+        if not result.get("ok"):
+            continue
+        key = _CREATED_SUMMARY_KEYS.get(result.get("type"))
+        if key is not None:
+            counts[key] += 1
+    return counts
+
+
+def _operation_type_counts(results: List[Dict[str, Any]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for result in results:
+        operation_type = result.get("type")
+        if isinstance(operation_type, str) and operation_type:
+            counts[operation_type] = counts.get(operation_type, 0) + 1
+    return counts
+
+
+def _execution_summary(
+    status: str,
+    results: List[Dict[str, Any]],
+    mutation_occurred: bool,
+    undo_available: bool,
+) -> Dict[str, Any]:
+    succeeded = sum(1 for result in results if result.get("ok"))
+    return {
+        "status": status,
+        "operation_count": len(results),
+        "succeeded_operations": succeeded,
+        "failed_operations": len(results) - succeeded,
+        "mutation_occurred": mutation_occurred,
+        "undo_available": undo_available,
+        "created": _created_counts(results),
+        "operation_types": _operation_type_counts(results),
+    }
+
+
 def _operation_error_result(
     index: int,
     operation: Any,
@@ -422,7 +469,8 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
                     "result": result,
                 }
             )
-            mutation_occurred = True
+            if resolved_request.type in _MUTATING_OPERATION_TYPES:
+                mutation_occurred = True
         except BlendexError as error:
             results.append(_operation_error_result(index, operation, error, mutation_occurred, batch_id))
         except Exception as error:
@@ -431,6 +479,7 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
 
     status = _status_for(results)
     error = _first_error(results)
+    undo_callback = _make_undo_callback(executor, undo_steps, has_unsupported_undo_step, status)
     record = BatchRecord(
         batch_id=batch_id,
         status=status,
@@ -442,8 +491,9 @@ def execute_batch(batch: Union[OperationRequest, Dict[str, Any]], executor: Any)
         actor=actor if isinstance(actor, str) else "",
         operations=results,
         preview=_batch_preview(results),
+        execution_summary=_execution_summary(status, results, mutation_occurred, callable(undo_callback)),
         error=error,
-        undo_callback=_make_undo_callback(executor, undo_steps, has_unsupported_undo_step, status),
+        undo_callback=undo_callback,
     )
     STATE.record_batch(record)
     return record.to_dict()

@@ -127,6 +127,45 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(result["warnings"][0]["code"], "SIMULATED_NODE_METADATA")
         self.assertEqual(result["preview"]["warnings"][0]["code"], "SIMULATED_NODE_METADATA")
 
+    def test_dry_run_returns_machine_readable_summary(self):
+        result = dry_run_operations(
+            [
+                {
+                    "id": "op_node",
+                    "type": "geometry_nodes.create_node",
+                    "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                    "params": {"node_type": "GeometryNodeJoinGeometry", "client_id": "join_1"},
+                },
+                {
+                    "id": "op_socket",
+                    "type": "geometry_nodes.set_socket_value",
+                    "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                    "params": {"node_id": "join_1", "socket": "Scale", "value": [1, 1, 1]},
+                },
+                {
+                    "id": "op_link",
+                    "type": "geometry_nodes.link_sockets",
+                    "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                    "params": {
+                        "from_node": "Group Input",
+                        "from_socket": "Geometry",
+                        "to_node": "join_1",
+                        "to_socket": "Geometry",
+                    },
+                },
+            ],
+            LinkRejectingExecutor(),
+        )
+
+        self.assertEqual(result["summary"]["status"], "partial")
+        self.assertTrue(result["summary"]["requires_confirmation"])
+        self.assertEqual(result["summary"]["operation_count"], 3)
+        self.assertEqual(result["summary"]["target"], {"object_id": "Cube", "modifier_id": "BlendeX Geometry"})
+        self.assertEqual(result["summary"]["changes"]["nodes"], 1)
+        self.assertEqual(result["summary"]["changes"]["socket_values"], 1)
+        self.assertEqual(result["summary"]["changes"]["links"], 1)
+        self.assertEqual(result["summary"]["warnings"], 2)
+
     def test_dry_run_ignores_non_string_node_reference_params(self):
         result = dry_run_operations(
             [{"id": "op_scene", "type": "scene.inspect", "target": {}, "params": {"node_id": []}}],

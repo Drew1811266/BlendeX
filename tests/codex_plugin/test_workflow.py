@@ -27,16 +27,19 @@ class WorkflowTests(unittest.TestCase):
 
         summary = confirmation_summary(dry_run)
 
+        self.assertIn("Dry run: partial", summary)
         self.assertIn("Cube", summary)
         self.assertIn("BlendeX Geometry", summary)
         self.assertIn("1 node", summary)
         self.assertIn("1 link", summary)
         self.assertIn("1 socket value", summary)
         self.assertIn("1 warning", summary)
+        self.assertIn("requires confirmation", summary)
 
     def test_confirmation_summary_handles_missing_preview_and_modifier(self):
         summary = confirmation_summary({"status": "valid"})
 
+        self.assertIn("Dry run: valid", summary)
         self.assertIn("selected target", summary)
         self.assertIn("BlendeX Geometry", summary)
         self.assertIn("0 nodes", summary)

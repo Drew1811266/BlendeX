@@ -254,6 +254,51 @@ class BatchExecutionTests(unittest.TestCase):
         self.assertEqual(STATE.batch_history.latest().to_dict()["dry_run"], True)
         self.assertEqual(STATE.batch_history.latest().to_dict()["actor"], "codex")
 
+    def test_execute_batch_returns_execution_summary_counts(self):
+        executor = RecordingExecutor()
+        result = execute_batch(
+            {
+                "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "make_noise",
+                            "type": "geometry_nodes.create_node",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {"node_type": "GeometryNodeTexNoise", "client_id": "noise"},
+                        },
+                        {
+                            "id": "link_noise",
+                            "type": "geometry_nodes.link_sockets",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {
+                                "from_node": "noise",
+                                "from_socket": "Fac",
+                                "to_node": "Group Output",
+                                "to_socket": "Geometry",
+                            },
+                        },
+                    ],
+                    summary="Create and link nodes",
+                    confirmation_id="confirm_execution_summary",
+                ),
+            },
+            executor,
+        )
+
+        self.assertEqual(result["execution_summary"]["status"], "succeeded")
+        self.assertEqual(result["execution_summary"]["operation_count"], 2)
+        self.assertEqual(result["execution_summary"]["succeeded_operations"], 2)
+        self.assertEqual(result["execution_summary"]["failed_operations"], 0)
+        self.assertTrue(result["execution_summary"]["mutation_occurred"])
+        self.assertFalse(result["execution_summary"]["undo_available"])
+        self.assertEqual(result["execution_summary"]["created"]["nodes"], 1)
+        self.assertEqual(result["execution_summary"]["created"]["links"], 1)
+        self.assertEqual(
+            STATE.batch_history.latest().to_dict()["execution_summary"],
+            result["execution_summary"],
+        )
+
     def test_execute_batch_rejects_empty_operations_without_recording_history(self):
         executor = RecordingExecutor()
         request = OperationRequest(
