@@ -1,3 +1,4 @@
+import os
 import pathlib
 import sys
 import traceback
@@ -14,6 +15,8 @@ import blendex
 from blendex.scene import bpy_scene_context
 from blendex.batches import execute_batch, undo_last_batch
 from blendex.executor import GeometryNodesExecutor
+from codex_plugin.blendex_mcp.benchmark import load_heldout_prompts
+from codex_plugin.blendex_mcp.graph_planner import plan_graph
 from codex_plugin.blendex_mcp.recipes import REGISTRY
 from blendex_protocol.messages import OperationRequest
 
@@ -23,9 +26,17 @@ class SmokeContext:
         self._context = bpy_scene_context()
         self.node_types = {
             "FunctionNodeRandomValue": {},
+            "GeometryNodeCaptureAttribute": {},
             "GeometryNodeDistributePointsOnFaces": {},
+            "GeometryNodeInstanceOnPoints": {},
             "GeometryNodeJoinGeometry": {},
+            "GeometryNodeMeshCube": {},
+            "GeometryNodeMeshLine": {},
+            "GeometryNodeRealizeInstances": {},
+            "GeometryNodeSetPosition": {},
             "GeometryNodeTransform": {},
+            "NodeGroupInput": {},
+            "NodeGroupOutput": {},
         }
 
     def __getattr__(self, name):
@@ -72,6 +83,49 @@ def _execute_recipe(executor, recipe_id, params, expected_label_fragments, minim
 
     undo = undo_last_batch()
     assert undo["undo_status"] == "undone", undo
+
+
+def _execute_generated_graph(executor, item):
+    plan = plan_graph(item["prompt"])
+    assert plan["mode"] == "graph_plan", plan
+    assert plan["validation"]["valid"], plan["validation"]
+    operations = plan["operations"]
+    object_id = _carrier_name(operations)
+    batch = execute_batch(
+        {
+            "target": {"object_id": object_id},
+            "params": {
+                "confirmed": True,
+                "confirmation_id": f"generated_{item['id']}",
+                "summary": f"Generated graph smoke {item['id']}",
+                "operations": operations,
+            },
+        },
+        executor,
+    )
+    assert batch["status"] == "succeeded", batch
+    assert batch["execution_summary"]["failed_operations"] == 0
+
+    tree = executor.execute(
+        OperationRequest(
+            id=f"inspect_generated_{item['id']}",
+            type="geometry_nodes.inspect_tree",
+            target={"object_id": object_id, "modifier_id": "BlendeX Geometry"},
+            params={},
+        )
+    )
+    labels = {node.get("label", "") for node in tree["nodes"]}
+    for node in plan["graph"]["nodes"]:
+        assert node["label"] in labels, (node["label"], labels)
+    assert len(tree["links"]) >= max(1, len(plan["graph"]["links"]) - 1), tree["links"]
+
+    undo = undo_last_batch()
+    assert undo["undo_status"] == "undone", undo
+
+
+def run_generated_graph_smoke(executor):
+    for item in load_heldout_prompts()[:2]:
+        _execute_generated_graph(executor, item)
 
 
 def main():
@@ -180,6 +234,8 @@ def main():
             {"Ground Points", "Ground Random", "Ground Density Random"},
             minimum_links=1,
         )
+        if os.environ.get("BLENDEX_GENERATED_GRAPH_SMOKE"):
+            run_generated_graph_smoke(executor)
     finally:
         blendex.unregister()
 
