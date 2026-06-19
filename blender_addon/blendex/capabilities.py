@@ -3,10 +3,74 @@ from typing import Any, Dict, Iterable
 
 try:
     from codex_plugin.blendex_mcp.catalog import semantic_for_node
+    from codex_plugin.blendex_mcp.node_schema import normalize_node_capability, normalize_socket
 except Exception:
 
     def semantic_for_node(node_type: str) -> Dict[str, Any]:
         return {}
+
+    def normalize_socket(socket: Any, *, direction: str) -> Dict[str, Any]:
+        def json_safe(value: Any) -> Any:
+            if value is None or isinstance(value, (bool, int, float, str)):
+                return value
+            if isinstance(value, (list, tuple)):
+                return [json_safe(item) for item in value]
+            if isinstance(value, dict):
+                return {str(key): json_safe(item) for key, item in value.items()}
+            try:
+                return [json_safe(item) for item in value]
+            except TypeError:
+                return str(value)
+
+        def enum_item_to_dict(item: Any) -> Dict[str, str]:
+            if isinstance(item, str):
+                return {"identifier": item, "name": item}
+            identifier = getattr(item, "identifier", "")
+            name = getattr(item, "name", identifier)
+            if not identifier:
+                identifier = name
+            if not name:
+                name = identifier
+            return {"identifier": str(identifier), "name": str(name)}
+
+        if isinstance(socket, str):
+            name = socket
+            identifier = socket
+            socket_type = ""
+            default_value = None
+            enum_items = []
+        else:
+            name = getattr(socket, "name", "")
+            identifier = getattr(socket, "identifier", name)
+            socket_type = getattr(socket, "socket_type", getattr(socket, "bl_socket_idname", ""))
+            default_value = getattr(socket, "default_value", None)
+            enum_items = getattr(socket, "enum_items", [])
+        try:
+            normalized_enum_items = [enum_item_to_dict(item) for item in enum_items]
+        except TypeError:
+            normalized_enum_items = []
+        return {
+            "name": str(name),
+            "identifier": str(identifier or name),
+            "socket_type": str(socket_type or ""),
+            "direction": direction,
+            "is_multi_input": bool(getattr(socket, "is_multi_input", False)),
+            "is_field": bool(getattr(socket, "is_field", getattr(socket, "supports_field", False))),
+            "default_value": json_safe(default_value),
+            "enum_items": normalized_enum_items,
+        }
+
+    def normalize_node_capability(identifier: str, capability: Any = None) -> Dict[str, Any]:
+        capability = copy.deepcopy(capability) if isinstance(capability, dict) else {}
+        inputs = [normalize_socket(socket, direction="input") for socket in capability.get("inputs", [])]
+        outputs = [normalize_socket(socket, direction="output") for socket in capability.get("outputs", [])]
+        return {
+            "schema_version": "node_capability.v2",
+            "display_name": capability.get("display_name", identifier),
+            "inputs": inputs,
+            "outputs": outputs,
+            "metadata_complete": bool(capability.get("metadata_complete", bool(inputs or outputs))),
+        }
 
 
 IMPLEMENTED_OPERATIONS = {
@@ -35,15 +99,11 @@ _RUNTIME_NODE_BASE_NAME_SET = set(_RUNTIME_NODE_BASE_NAMES)
 _DIRECT_GEOMETRY_TREE_NODE_NAMES = ("NodeGroupInput", "NodeGroupOutput")
 
 
-def _socket_template_to_dict(template: Any) -> Dict[str, Any]:
-    return {
-        "name": getattr(template, "name", ""),
-        "identifier": getattr(template, "identifier", getattr(template, "name", "")),
-        "socket_type": getattr(template, "bl_socket_idname", template.__class__.__name__),
-    }
+def _socket_template_to_dict(template: Any, direction: str) -> Dict[str, Any]:
+    return normalize_socket(template, direction=direction)
 
 
-def _read_templates(node_class: Any, method_name: str) -> list:
+def _read_templates(node_class: Any, method_name: str, direction: str) -> list:
     method = getattr(node_class, method_name, None)
     if not callable(method):
         return []
@@ -56,7 +116,7 @@ def _read_templates(node_class: Any, method_name: str) -> list:
             break
         if template is None:
             break
-        sockets.append(_socket_template_to_dict(template))
+        sockets.append(_socket_template_to_dict(template, direction))
         index += 1
     return sockets
 
@@ -66,15 +126,13 @@ def _semantic_for_identifier(identifier: str) -> Dict[str, Any]:
 
 
 def _node_capability(identifier: str, node_class: Any = None) -> Dict[str, Any]:
-    inputs = _read_templates(node_class, "input_template") if node_class is not None else []
-    outputs = _read_templates(node_class, "output_template") if node_class is not None else []
-    metadata_complete = bool(inputs or outputs)
-    capability = {
+    inputs = _read_templates(node_class, "input_template", "input") if node_class is not None else []
+    outputs = _read_templates(node_class, "output_template", "output") if node_class is not None else []
+    capability = normalize_node_capability(identifier, {
         "display_name": identifier,
         "inputs": inputs,
         "outputs": outputs,
-        "metadata_complete": metadata_complete,
-    }
+    })
     semantic = _semantic_for_identifier(identifier)
     if semantic:
         capability["semantic"] = semantic
@@ -188,13 +246,7 @@ def scan_capabilities(runtime: Any) -> Dict[str, Any]:
     runtime_node_types = getattr(runtime, "node_types", {})
     node_types: Dict[str, Dict[str, Any]] = {}
     for identifier, capability in runtime_node_types.items():
-        node_capability = copy.deepcopy(capability)
-        node_capability.setdefault("inputs", [])
-        node_capability.setdefault("outputs", [])
-        node_capability.setdefault(
-            "metadata_complete",
-            bool(node_capability["inputs"] or node_capability["outputs"]),
-        )
+        node_capability = normalize_node_capability(identifier, copy.deepcopy(capability))
         semantic = _semantic_for_identifier(identifier)
         if semantic:
             node_capability["semantic"] = semantic
