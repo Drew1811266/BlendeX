@@ -1,0 +1,146 @@
+{
+  "version": "0.5",
+  "description": "Held-out prompts for BlendeX v0.5 semantic Geometry Nodes planning. These are not recipe ids and must be solved through effect reasoning, graph constraints, and validation.",
+  "prompts": [
+    {
+      "id": "heldout_scatter_slope_pebbles",
+      "prompt": "scatter uneven small pebbles across a sloped ground surface with random scale",
+      "expected_effects": ["scatter", "instance", "field"],
+      "minimum_nodes": 5,
+      "notes": "Should require distribution, random variation, instancing, and final geometry output."
+    },
+    {
+      "id": "heldout_architecture_parametric_balconies",
+      "prompt": "create a simple tower mass with repeating balconies that get smaller near the top",
+      "expected_effects": ["architecture", "instance", "deform"],
+      "minimum_nodes": 6,
+      "notes": "Should combine modular repetition with scale variation."
+    },
+    {
+      "id": "heldout_deform_wave_facade",
+      "prompt": "make a flat facade ripple forward and backward using a sinusoidal field",
+      "expected_effects": ["architecture", "deform", "field"],
+      "minimum_nodes": 5,
+      "notes": "Should use a field-driven offset into Set Position or equivalent."
+    },
+    {
+      "id": "heldout_material_height_gradient",
+      "prompt": "assign a different material to upper faces based on height",
+      "expected_effects": ["material", "selection", "field"],
+      "minimum_nodes": 4,
+      "notes": "Should infer a height-based selection mask and material assignment."
+    },
+    {
+      "id": "heldout_attribute_store_floor_index",
+      "prompt": "build stacked floors and store a floor index attribute for later shading",
+      "expected_effects": ["architecture", "attribute", "field"],
+      "minimum_nodes": 5,
+      "notes": "Should create or store a named attribute rather than only label nodes."
+    },
+    {
+      "id": "heldout_instance_lamps_on_grid",
+      "prompt": "place small lamp modules on every other point of a rectangular grid",
+      "expected_effects": ["instance", "selection", "field"],
+      "minimum_nodes": 6,
+      "notes": "Should use a selection pattern and instance placement."
+    },
+    {
+      "id": "heldout_scatter_grass_density_mask",
+      "prompt": "scatter grass more densely near the center and sparsely near the edges",
+      "expected_effects": ["scatter", "field", "selection"],
+      "minimum_nodes": 6,
+      "notes": "Should infer density modulation from a field or selection mask."
+    },
+    {
+      "id": "heldout_deform_random_rooftop_panels",
+      "prompt": "make rooftop panels with subtle random height offsets",
+      "expected_effects": ["architecture", "deform", "field"],
+      "minimum_nodes": 5,
+      "notes": "Should use deterministic random values to drive offsets."
+    },
+    {
+      "id": "heldout_material_random_window_colors",
+      "prompt": "give repeated window modules random warm and cool material variations",
+      "expected_effects": ["material", "instance", "attribute"],
+      "minimum_nodes": 6,
+      "notes": "Should combine instancing with material or attribute variation."
+    },
+    {
+      "id": "heldout_attribute_capture_initial_position",
+      "prompt": "capture the original position before deforming points upward",
+      "expected_effects": ["attribute", "deform", "field"],
+      "minimum_nodes": 5,
+      "notes": "Should use capture semantics before Set Position or equivalent."
+    },
+    {
+      "id": "heldout_scatter_rocks_along_curve",
+      "prompt": "scatter rocks along a path curve with rotation following the path direction",
+      "expected_effects": ["scatter", "instance", "field"],
+      "minimum_nodes": 6,
+      "notes": "Should infer curve/path distribution and orientation."
+    },
+    {
+      "id": "heldout_architecture_bridge_segments",
+      "prompt": "generate a bridge made of repeated support segments that taper toward the middle",
+      "expected_effects": ["architecture", "instance", "deform"],
+      "minimum_nodes": 6,
+      "notes": "Should compose repetition, transform, and scale variation."
+    },
+    {
+      "id": "heldout_selection_checkerboard_panels",
+      "prompt": "select alternating facade panels in a checkerboard pattern",
+      "expected_effects": ["selection", "field", "architecture"],
+      "minimum_nodes": 5,
+      "notes": "Should infer index/math driven boolean selection."
+    },
+    {
+      "id": "heldout_instance_realize_for_bevel",
+      "prompt": "place repeated blocks and then realize them so each block can be beveled individually",
+      "expected_effects": ["instance", "deform", "attribute"],
+      "minimum_nodes": 6,
+      "notes": "Should include realization before a mesh-only operation."
+    },
+    {
+      "id": "heldout_material_slope_based_ground",
+      "prompt": "color steep parts of a ground mesh darker than flat parts",
+      "expected_effects": ["material", "field", "selection"],
+      "minimum_nodes": 5,
+      "notes": "Should infer normal or slope field into material selection."
+    },
+    {
+      "id": "heldout_deform_noise_terrain",
+      "prompt": "turn a grid into a low rolling terrain with noise-based vertical displacement",
+      "expected_effects": ["deform", "field", "attribute"],
+      "minimum_nodes": 5,
+      "notes": "Should use procedural value or vector fields to offset positions."
+    },
+    {
+      "id": "heldout_scatter_trees_by_vertex_group",
+      "prompt": "scatter tree instances only where a density attribute is high",
+      "expected_effects": ["scatter", "instance", "attribute"],
+      "minimum_nodes": 6,
+      "notes": "Should use an attribute as distribution or selection control."
+    },
+    {
+      "id": "heldout_architecture_exposed_floor_count",
+      "prompt": "make the number of generated floors an exposed parameter on the node group",
+      "expected_effects": ["architecture", "attribute", "field"],
+      "minimum_nodes": 5,
+      "notes": "Should expose controllable group input semantics."
+    },
+    {
+      "id": "heldout_selection_boundary_edges",
+      "prompt": "select boundary edges and assign them a trim material",
+      "expected_effects": ["selection", "material", "attribute"],
+      "minimum_nodes": 4,
+      "notes": "Should infer topology selection and material assignment."
+    },
+    {
+      "id": "heldout_instance_nested_pavilion",
+      "prompt": "create a pavilion by instancing columns around a circle and adding a roof ring",
+      "expected_effects": ["architecture", "instance", "field"],
+      "minimum_nodes": 7,
+      "notes": "Should combine radial distribution, instancing, join, and output."
+    }
+  ]
+}
