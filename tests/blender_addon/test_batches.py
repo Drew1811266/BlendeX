@@ -6,7 +6,7 @@ from blendex_protocol.messages import OperationRequest
 from blender_addon.blendex.batches import execute_batch, undo_last_batch
 from blender_addon.blendex.executor import GeometryNodesExecutor
 from blender_addon.blendex.state import STATE
-from tests.blender_addon.test_executor_fake import FakeContext, FakeObject
+from tests.blender_addon.test_executor_fake import FakeBlenderNodeCollection, FakeContext, FakeLinkCollection, FakeObject
 
 
 class RecordingExecutor:
@@ -549,6 +549,92 @@ class BatchExecutionTests(unittest.TestCase):
             )
         )
         self.assertNotIn("Batch Join", {node["label"] for node in tree_after_undo["nodes"]})
+
+    def test_undo_last_batch_restores_socket_values_and_removes_links(self):
+        context = FakeContext()
+        context.node_types.add("ShaderNodeValue")
+        tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group
+
+        tree.nodes = FakeBlenderNodeCollection()
+        tree.links = FakeLinkCollection()
+        from_node = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        to_node = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        value_node = tree.nodes.new(type="ShaderNodeValue")
+        value_socket = value_node.inputs.get("Value")
+        value_socket.default_value = 2.0
+        executor = GeometryNodesExecutor(context)
+
+        result = execute_batch(
+            {
+                "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "set_value",
+                            "type": "geometry_nodes.set_socket_value",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {"node_id": value_node.name, "socket": "Value", "value": 4.25},
+                        },
+                        {
+                            "id": "link_geometry",
+                            "type": "geometry_nodes.link_sockets",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {
+                                "from_node": from_node.name,
+                                "from_socket": "Geometry",
+                                "to_node": to_node.name,
+                                "to_socket": "Geometry",
+                            },
+                        },
+                    ],
+                    summary="Set value and link geometry",
+                    confirmation_id="confirm_extended_undo",
+                ),
+            },
+            executor,
+        )
+
+        self.assertEqual(result["status"], "succeeded")
+        self.assertEqual(value_socket.default_value, 4.25)
+        self.assertEqual(len(tree.links), 1)
+
+        undo_result = undo_last_batch()
+
+        self.assertEqual(undo_result["undo_status"], "undone")
+        self.assertEqual(value_socket.default_value, 2.0)
+        self.assertEqual(len(tree.links), 0)
+
+    def test_undo_last_batch_restores_node_label(self):
+        context = FakeContext()
+        tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group
+        tree.nodes = FakeBlenderNodeCollection()
+        node = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        node.label = "Original Label"
+        executor = GeometryNodesExecutor(context)
+
+        execute_batch(
+            {
+                "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                "params": _confirmed_params(
+                    [
+                        {
+                            "id": "label_node",
+                            "type": "geometry_nodes.label_node",
+                            "target": {"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+                            "params": {"node_id": node.name, "label": "Temporary Label"},
+                        }
+                    ],
+                    summary="Temporarily label node",
+                    confirmation_id="confirm_label_undo",
+                ),
+            },
+            executor,
+        )
+        self.assertEqual(node.label, "Temporary Label")
+
+        undo_last_batch()
+
+        self.assertEqual(node.label, "Original Label")
 
     def test_undo_last_batch_without_reliable_undo_marks_unavailable(self):
         execute_batch(

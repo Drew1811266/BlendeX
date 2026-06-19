@@ -200,6 +200,85 @@ def _executor_node(executor: Any, tree: Any, node_id: str) -> Any:
     return node
 
 
+def _node_id(node: Any) -> str:
+    if isinstance(node, str):
+        return node
+    if isinstance(node, dict):
+        return node.get("id") or node.get("name") or ""
+    return getattr(node, "name", getattr(node, "identifier", ""))
+
+
+def _socket_name(socket: Any) -> str:
+    if isinstance(socket, str):
+        return socket
+    if isinstance(socket, dict):
+        return socket.get("name") or socket.get("identifier") or ""
+    return getattr(socket, "name", getattr(socket, "identifier", ""))
+
+
+def _executor_socket(executor: Any, node: Any, socket_name: str, direction: str) -> Any:
+    socket_getter = getattr(executor, "_socket", None)
+    if callable(socket_getter):
+        return socket_getter(node, socket_name, direction)
+    sockets = node.get(direction, []) if isinstance(node, dict) else getattr(node, direction, [])
+    socket = _collection_get(executor, sockets, socket_name)
+    if socket is None:
+        raise BlendexError(
+            "SOCKET_NOT_FOUND",
+            f"Socket not found: {socket_name}",
+            details={"node_id": _node_id(node), "direction": direction},
+        )
+    return socket
+
+
+def _socket_default_snapshot(socket: Any) -> Any:
+    if isinstance(socket, dict):
+        return {
+            "had_default": "default_value" in socket,
+            "value": copy.deepcopy(socket.get("default_value")),
+        }
+    try:
+        value = getattr(socket, "default_value")
+    except Exception:
+        return _UNSUPPORTED_UNDO
+    return {"had_default": True, "value": copy.deepcopy(value)}
+
+
+def _set_socket_default(executor: Any, socket: Any, had_default: bool, value: Any) -> None:
+    if isinstance(socket, dict):
+        if had_default:
+            socket["default_value"] = copy.deepcopy(value)
+        else:
+            socket.pop("default_value", None)
+        return
+    setter = getattr(executor, "_set_socket_default", None)
+    if had_default and callable(setter):
+        setter(socket, copy.deepcopy(value))
+        return
+    if had_default:
+        try:
+            setattr(socket, "default_value", copy.deepcopy(value))
+            return
+        except Exception as exc:
+            raise BlendexError("UNDO_UNAVAILABLE", "Could not restore socket default value.", details={"exception": str(exc)})
+    raise BlendexError("UNDO_UNAVAILABLE", "Cannot remove socket default value on this runtime socket.")
+
+
+def _node_label(node: Any) -> str:
+    if isinstance(node, dict):
+        value = node.get("label", "")
+    else:
+        value = getattr(node, "label", "")
+    return value if isinstance(value, str) else ""
+
+
+def _set_node_label(node: Any, label: str) -> None:
+    if isinstance(node, dict):
+        node["label"] = label
+    else:
+        node.label = label
+
+
 def _remove_collection_item(collection: Any, key: str, item: Any, label: str) -> None:
     remover = getattr(collection, "remove", None)
     if callable(remover):
@@ -233,6 +312,40 @@ def _remove_collection_item(collection: Any, key: str, item: Any, label: str) ->
                 created.remove(existing)
                 return
     raise BlendexError("UNDO_UNAVAILABLE", f"Could not remove {label}: {key}")
+
+
+def _link_endpoint(link: Any, key: str) -> str:
+    if isinstance(link, dict):
+        value = link.get(key)
+    else:
+        value = getattr(link, key, None)
+    if key.endswith("node"):
+        return _node_id(value)
+    return _socket_name(value)
+
+
+def _link_matches_step(link: Any, step: Dict[str, Any]) -> bool:
+    return (
+        _link_endpoint(link, "from_node") == step["from_node"]
+        and _link_endpoint(link, "from_socket") == step["from_socket"]
+        and _link_endpoint(link, "to_node") == step["to_node"]
+        and _link_endpoint(link, "to_socket") == step["to_socket"]
+    )
+
+
+def _remove_link_from_tree(tree: Any, step: Dict[str, Any]) -> None:
+    links = getattr(tree, "links", None)
+    if links is None:
+        raise BlendexError("UNDO_UNAVAILABLE", "Node tree does not expose a link collection.")
+    if isinstance(links, dict):
+        candidates = list(links.values())
+    else:
+        candidates = list(links)
+    for link in candidates:
+        if _link_matches_step(link, step):
+            _remove_collection_item(links, "", link, "link")
+            return
+    raise BlendexError("UNDO_UNAVAILABLE", "Could not find link created by batch.")
 
 
 def _remove_object_from_context(executor: Any, object_id: str) -> None:
@@ -281,6 +394,65 @@ def _undo_step_before_request(request: OperationRequest, executor: Any) -> Any:
         if context is None or _collection_get(executor, getattr(context, "objects", None), object_id) is not None:
             return _UNSUPPORTED_UNDO
         return {"action": "remove_object", "object_id": object_id}
+    if request.type == "geometry_nodes.set_socket_value":
+        context = getattr(executor, "context", None)
+        if context is None:
+            return _UNSUPPORTED_UNDO
+        obj = _executor_object(executor, request.target["object_id"])
+        modifier_id = request.target.get("modifier_id", "BlendeX Geometry")
+        modifier = _executor_modifier(executor, obj, modifier_id)
+        tree = _executor_tree(executor, modifier)
+        node = _executor_node(executor, tree, request.params["node_id"])
+        socket = _executor_socket(executor, node, request.params["socket"], "inputs")
+        snapshot = _socket_default_snapshot(socket)
+        if snapshot is _UNSUPPORTED_UNDO:
+            return _UNSUPPORTED_UNDO
+        return {
+            "action": "restore_socket_value",
+            "object_id": request.target["object_id"],
+            "modifier_id": modifier_id,
+            "node_id": _node_id(node),
+            "socket": _socket_name(socket),
+            "had_default": snapshot["had_default"],
+            "value": snapshot["value"],
+        }
+    if request.type == "geometry_nodes.link_sockets":
+        context = getattr(executor, "context", None)
+        if context is None:
+            return _UNSUPPORTED_UNDO
+        obj = _executor_object(executor, request.target["object_id"])
+        modifier_id = request.target.get("modifier_id", "BlendeX Geometry")
+        modifier = _executor_modifier(executor, obj, modifier_id)
+        tree = _executor_tree(executor, modifier)
+        from_node = _executor_node(executor, tree, request.params["from_node"])
+        from_socket = _executor_socket(executor, from_node, request.params["from_socket"], "outputs")
+        to_node = _executor_node(executor, tree, request.params["to_node"])
+        to_socket = _executor_socket(executor, to_node, request.params["to_socket"], "inputs")
+        return {
+            "action": "remove_link",
+            "object_id": request.target["object_id"],
+            "modifier_id": modifier_id,
+            "from_node": _node_id(from_node),
+            "from_socket": _socket_name(from_socket),
+            "to_node": _node_id(to_node),
+            "to_socket": _socket_name(to_socket),
+        }
+    if request.type == "geometry_nodes.label_node":
+        context = getattr(executor, "context", None)
+        if context is None:
+            return _UNSUPPORTED_UNDO
+        obj = _executor_object(executor, request.target["object_id"])
+        modifier_id = request.target.get("modifier_id", "BlendeX Geometry")
+        modifier = _executor_modifier(executor, obj, modifier_id)
+        tree = _executor_tree(executor, modifier)
+        node = _executor_node(executor, tree, request.params["node_id"])
+        return {
+            "action": "restore_label",
+            "object_id": request.target["object_id"],
+            "modifier_id": modifier_id,
+            "node_id": _node_id(node),
+            "label": _node_label(node),
+        }
     if request.type in _MUTATING_OPERATION_TYPES:
         return _UNSUPPORTED_UNDO
     return None
@@ -306,6 +478,8 @@ def _complete_undo_step(undo_step: Any, result: Dict[str, Any]) -> Any:
         if not isinstance(object_id, str) or not object_id:
             return _UNSUPPORTED_UNDO
         step["object_id"] = object_id
+    elif action in {"restore_socket_value", "remove_link", "restore_label"}:
+        return step
     return step
 
 
@@ -325,6 +499,27 @@ def _apply_undo_step(executor: Any, step: Dict[str, Any]) -> None:
         return
     if action == "remove_object":
         _remove_object_from_context(executor, step["object_id"])
+        return
+    if action == "restore_socket_value":
+        obj = _executor_object(executor, step["object_id"])
+        modifier = _executor_modifier(executor, obj, step["modifier_id"])
+        tree = _executor_tree(executor, modifier)
+        node = _executor_node(executor, tree, step["node_id"])
+        socket = _executor_socket(executor, node, step["socket"], "inputs")
+        _set_socket_default(executor, socket, step["had_default"], step.get("value"))
+        return
+    if action == "remove_link":
+        obj = _executor_object(executor, step["object_id"])
+        modifier = _executor_modifier(executor, obj, step["modifier_id"])
+        tree = _executor_tree(executor, modifier)
+        _remove_link_from_tree(tree, step)
+        return
+    if action == "restore_label":
+        obj = _executor_object(executor, step["object_id"])
+        modifier = _executor_modifier(executor, obj, step["modifier_id"])
+        tree = _executor_tree(executor, modifier)
+        node = _executor_node(executor, tree, step["node_id"])
+        _set_node_label(node, step["label"])
         return
     raise BlendexError("UNDO_UNAVAILABLE", f"Unsupported undo action: {action}")
 
