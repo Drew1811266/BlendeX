@@ -34,6 +34,7 @@ class SmokeContext:
             "GeometryNodeMeshLine": {},
             "GeometryNodeRealizeInstances": {},
             "GeometryNodeSetPosition": {},
+            "GeometryNodeStoreNamedAttribute": {},
             "GeometryNodeTransform": {},
             "NodeGroupInput": {},
             "NodeGroupOutput": {},

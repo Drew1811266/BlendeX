@@ -28,6 +28,24 @@ class FakeNodeTree:
         return self.props.get(key, default)
 
 
+class FakeInterfaceSocket:
+    def __init__(self, name, in_out, socket_type):
+        self.name = name
+        self.in_out = in_out
+        self.socket_type = socket_type
+        self.item_type = "SOCKET"
+
+
+class FakeNodeTreeInterface:
+    def __init__(self):
+        self.items_tree = []
+
+    def new_socket(self, *, name, in_out, socket_type):
+        socket = FakeInterfaceSocket(name, in_out, socket_type)
+        self.items_tree.append(socket)
+        return socket
+
+
 class ClearingNodeGroupModifier:
     def __init__(self, name, owned=True):
         self.name = name
@@ -175,6 +193,17 @@ class FakeLinkCollection:
         return len(self.created)
 
 
+class ClearingLinkCollection(FakeLinkCollection):
+    def __init__(self, modifier):
+        super().__init__()
+        self.modifier = modifier
+
+    def new(self, from_socket, to_socket):
+        link = super().new(from_socket, to_socket)
+        self.modifier.props.clear()
+        return link
+
+
 class FakeBlenderNodeCollection:
     def __init__(self):
         self.created = []
@@ -199,6 +228,17 @@ class FakeBlenderNodeCollection:
 
     def __iter__(self):
         return iter(self.created)
+
+
+class ClearingBlenderNodeCollection(FakeBlenderNodeCollection):
+    def __init__(self, modifier):
+        super().__init__()
+        self.modifier = modifier
+
+    def new(self, type):
+        node = super().new(type)
+        self.modifier.props.clear()
+        return node
 
 
 class ExecutorTests(unittest.TestCase):
@@ -410,6 +450,24 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(result["outputs"][0]["socket_type"], "NodeSocketGeometry")
         self.assertEqual(tree.nodes.created[0].location, (12, 34))
 
+    def test_create_node_restores_modifier_ownership_after_blender_side_effect(self):
+        context = FakeContext()
+        modifier = context.objects["Cube"].modifiers["BlendeX Geometry"]
+        tree = modifier.node_group
+        tree.nodes = ClearingBlenderNodeCollection(modifier)
+        executor = GeometryNodesExecutor(context)
+        request = OperationRequest(
+            id="req_node_reown",
+            type="geometry_nodes.create_node",
+            target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+            params={"node_type": "GeometryNodeJoinGeometry", "label": "Join Geometry"},
+        )
+
+        executor.execute(request)
+
+        self.assertTrue(modifier.get("blendex_owned"))
+        self.assertTrue(tree.get("blendex_owned"))
+
     def test_create_node_rejects_invalid_location_before_mutation(self):
         context = FakeContext()
         tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group
@@ -509,6 +567,24 @@ class ExecutorTests(unittest.TestCase):
         self.assertTrue(result["blendex_owned"])
         self.assertTrue(modifier.get("blendex_owned"))
         self.assertTrue(modifier.node_group.get("blendex_owned"))
+
+    def test_create_modifier_ensures_geometry_group_interface_sockets(self):
+        context = FakeContext()
+        tree = context.objects["Cube"].modifiers["BlendeX Geometry"].node_group
+        tree.interface = FakeNodeTreeInterface()
+        executor = GeometryNodesExecutor(context)
+        request = OperationRequest(
+            id="req_modifier_interface",
+            type="geometry_nodes.create_modifier",
+            target={"object_id": "Cube"},
+            params={"modifier_id": "BlendeX Geometry"},
+        )
+
+        executor.execute(request)
+
+        sockets = {(socket.name, socket.in_out, socket.socket_type) for socket in tree.interface.items_tree}
+        self.assertIn(("Geometry", "INPUT", "NodeSocketGeometry"), sockets)
+        self.assertIn(("Geometry", "OUTPUT", "NodeSocketGeometry"), sockets)
 
     def test_validate_create_modifier_rejects_existing_non_nodes_modifier(self):
         context = FakeContext()
@@ -649,6 +725,32 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(result["to_node"], to_node.name)
         self.assertEqual(result["socket_type"], "NodeSocketGeometry")
         self.assertEqual(len(tree.links), 1)
+
+    def test_link_sockets_restores_modifier_ownership_after_blender_side_effect(self):
+        context = FakeContext()
+        modifier = context.objects["Cube"].modifiers["BlendeX Geometry"]
+        tree = modifier.node_group
+        tree.nodes = FakeBlenderNodeCollection()
+        tree.links = ClearingLinkCollection(modifier)
+        from_node = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        to_node = tree.nodes.new(type="GeometryNodeJoinGeometry")
+        executor = GeometryNodesExecutor(context)
+        request = OperationRequest(
+            id="req_link_reown",
+            type="geometry_nodes.link_sockets",
+            target={"object_id": "Cube", "modifier_id": "BlendeX Geometry"},
+            params={
+                "from_node": from_node.name,
+                "from_socket": "Geometry",
+                "to_node": to_node.name,
+                "to_socket": "Geometry",
+            },
+        )
+
+        executor.execute(request)
+
+        self.assertTrue(modifier.get("blendex_owned"))
+        self.assertTrue(tree.get("blendex_owned"))
 
     def test_link_sockets_rejects_mismatched_socket_types(self):
         context = FakeContext()

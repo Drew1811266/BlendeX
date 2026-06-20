@@ -10,8 +10,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class VersionTests(unittest.TestCase):
-    def test_v0_4_final_readiness_stage_is_0_40(self):
-        self.assertEqual(VERSION, "0.40.0")
+    def test_v0_5_final_readiness_stage_is_0_50(self):
+        self.assertEqual(VERSION, "0.50.0")
 
     def test_plugin_manifest_uses_runtime_version(self):
         manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
@@ -37,8 +37,10 @@ class VersionTests(unittest.TestCase):
     def test_readme_names_development_track(self):
         readme = (ROOT / "README.md").read_text()
 
-        self.assertRegex(readme, re.compile(r"v0\.4", re.IGNORECASE))
-        self.assertIn("local beta", readme)
+        self.assertRegex(readme, re.compile(r"v0\.5", re.IGNORECASE))
+        self.assertIn("Geometry Nodes reasoning system", readme)
+        self.assertIn("held-out benchmark: 20/20", readme)
+        self.assertIn("semantic graph planner", readme)
 
     def test_readme_does_not_list_completed_v0_3_trust_features_as_future_work(self):
         readme = (ROOT / "README.md").read_text()

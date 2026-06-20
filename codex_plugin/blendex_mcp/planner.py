@@ -133,9 +133,9 @@ def plan_goal(prompt: str, capabilities: Optional[Dict[str, Any]] = None) -> Dic
     if graph_plan.get("mode") == "graph_plan":
         return graph_plan
     return _unsupported(
-        "BlendeX v0.4 can plan architecture, hard-surface, nature, and scattering workflows.",
+        "BlendeX v0.5 can synthesize semantic Geometry Nodes graphs for supported procedural modeling workflows.",
         (
-            "Ask for a modular building, wall panel, grid tower, stone scatter, "
-            "grass scatter, or ground point distribution."
+            "Ask for architecture, scattering, instancing, deformation, fields, attributes, "
+            "selection masks, material assignment, or exposed group inputs."
         ),
     )

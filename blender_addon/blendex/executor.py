@@ -333,6 +333,7 @@ class GeometryNodesExecutor:
         if self._modifier_type(modifier) != "NODES":
             raise BlendexError("MODIFIER_NOT_FOUND", f"Modifier is not a Geometry Nodes modifier: {modifier_id}")
         tree = self._node_tree(modifier)
+        self._ensure_geometry_group_interface(tree)
         self._set_blendex_owned(modifier)
         self._set_blendex_owned(tree)
         return self._modifier_summary(object_id, modifier, tree)
@@ -367,6 +368,8 @@ class GeometryNodesExecutor:
             node = tree.nodes.new(type=node_type)
             node.label = label
             node.location = location
+            self._set_blendex_owned(modifier)
+            self._set_blendex_owned(tree)
             summary = self._inspect_node(node)
             summary["node_type"] = node_type
             summary["label"] = label
@@ -375,6 +378,8 @@ class GeometryNodesExecutor:
         node_id = f"node_{len(tree.nodes) + 1}"
         node_data = {"id": node_id, "node_type": node_type, "label": label, "location": list(location)}
         tree.nodes[node_id] = node_data
+        self._set_blendex_owned(modifier)
+        self._set_blendex_owned(tree)
         return node_data
 
     def _inspect_tree(self, request: OperationRequest) -> Dict[str, Any]:
@@ -511,9 +516,11 @@ class GeometryNodesExecutor:
             )
 
     def _set_socket_value(self, request: OperationRequest) -> Dict[str, Any]:
-        node, socket = self._validate_set_socket_value(request)
+        modifier, tree, node, socket = self._validate_set_socket_value(request)
         value = request.params["value"]
         self._set_socket_default(socket, value)
+        self._set_blendex_owned(modifier)
+        self._set_blendex_owned(tree)
         return {
             "node_id": self._node_id(node),
             "socket": self._socket_name(socket),
@@ -521,7 +528,7 @@ class GeometryNodesExecutor:
             "value": value,
         }
 
-    def _validate_set_socket_value(self, request: OperationRequest) -> tuple[Any, Any]:
+    def _validate_set_socket_value(self, request: OperationRequest) -> tuple[Any, Any, Any, Any]:
         obj = self._object(request.target["object_id"])
         modifier = self._modifier(
             obj,
@@ -538,17 +545,10 @@ class GeometryNodesExecutor:
                 f"Value is incompatible with socket: {request.params['socket']}",
                 details={"socket_type": self._socket_type(socket), "value_type": type(value).__name__},
             )
-        return node, socket
+        return modifier, tree, node, socket
 
     def _link_sockets(self, request: OperationRequest) -> Dict[str, Any]:
-        from_node, from_socket, to_node, to_socket, from_type = self._validate_link_sockets(request)
-        tree = self._existing_node_tree(
-            self._modifier(
-                self._object(request.target["object_id"]),
-                request.target.get("modifier_id", "BlendeX Geometry"),
-                require_ownership=True,
-            )
-        )
+        modifier, tree, from_node, from_socket, to_node, to_socket, from_type = self._validate_link_sockets(request)
         links = getattr(tree, "links", None)
         new_link = getattr(links, "new", None)
         if callable(new_link):
@@ -569,9 +569,11 @@ class GeometryNodesExecutor:
         summary.setdefault("to_node", self._node_id(to_node))
         summary.setdefault("to_socket", self._socket_name(to_socket))
         summary.setdefault("socket_type", from_type)
+        self._set_blendex_owned(modifier)
+        self._set_blendex_owned(tree)
         return summary
 
-    def _validate_link_sockets(self, request: OperationRequest) -> tuple[Any, Any, Any, Any, str]:
+    def _validate_link_sockets(self, request: OperationRequest) -> tuple[Any, Any, Any, Any, Any, Any, str]:
         obj = self._object(request.target["object_id"])
         modifier = self._modifier(
             obj,
@@ -597,7 +599,7 @@ class GeometryNodesExecutor:
                 "Destination input socket already has a link.",
                 details={"to_node": self._node_id(to_node), "to_socket": self._socket_name(to_socket)},
             )
-        return from_node, from_socket, to_node, to_socket, from_type
+        return modifier, tree, from_node, from_socket, to_node, to_socket, from_type
 
     def _label_node(self, request: OperationRequest) -> Dict[str, Any]:
         obj = self._object(request.target["object_id"])
@@ -626,6 +628,50 @@ class GeometryNodesExecutor:
 
     def _raw_node_tree(self, modifier: Any) -> Any:
         return modifier.get("node_group") if isinstance(modifier, dict) else getattr(modifier, "node_group", None)
+
+    def _interface_has_socket(self, interface: Any, name: str, in_out: str) -> bool:
+        try:
+            items = getattr(interface, "items_tree", [])
+            for item in items:
+                item_type = getattr(item, "item_type", "SOCKET")
+                if item_type != "SOCKET":
+                    continue
+                if getattr(item, "name", None) == name and getattr(item, "in_out", None) == in_out:
+                    return True
+        except Exception:
+            return False
+        return False
+
+    def _ensure_legacy_group_socket(self, tree: Any, collection_name: str) -> None:
+        sockets = getattr(tree, collection_name, None)
+        if sockets is None:
+            return
+        getter = getattr(sockets, "get", None)
+        if callable(getter) and getter("Geometry") is not None:
+            return
+        creator = getattr(sockets, "new", None)
+        if callable(creator):
+            try:
+                creator("NodeSocketGeometry", "Geometry")
+            except Exception:
+                return
+
+    def _ensure_geometry_group_interface(self, tree: Any) -> None:
+        if tree is None or isinstance(tree, dict):
+            return
+        interface = getattr(tree, "interface", None)
+        new_socket = getattr(interface, "new_socket", None) if interface is not None else None
+        if callable(new_socket):
+            for in_out in ("INPUT", "OUTPUT"):
+                if self._interface_has_socket(interface, "Geometry", in_out):
+                    continue
+                try:
+                    new_socket(name="Geometry", in_out=in_out, socket_type="NodeSocketGeometry")
+                except Exception:
+                    continue
+            return
+        self._ensure_legacy_group_socket(tree, "inputs")
+        self._ensure_legacy_group_socket(tree, "outputs")
 
     def _node_tree(self, modifier: Any) -> Any:
         tree = self._raw_node_tree(modifier)
